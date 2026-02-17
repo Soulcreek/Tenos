@@ -1,0 +1,44 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [develop]
+
+jobs:
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run tests
+        run: bun run test
+
+      - name: Build
+        run: bun run build
+
+      - name: Build Docker images
+        run: |
+          docker build --target server -t massless-server:staging-${{ github.sha }} .
+          docker build --target client -t massless-client:staging-${{ github.sha }} .
+
+      - name: Deploy to staging server
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+        run: |
+          echo "Deployment step - configure with actual staging server details"
+          # ssh -i $STAGING_SSH_KEY user@$STAGING_HOST 'cd /opt/massless && docker compose pull && docker compose up -d'
+
+      - name: Smoke test
+        run: |
+          echo "Smoke test - verify staging health endpoint"
+          # curl -f https://staging.massless.game/health || exit 1
