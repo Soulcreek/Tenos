@@ -1,0 +1,13 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "types": ["bun-types"],
+    "paths": {
+      "@tenos/shared": ["../../../packages/shared/src"],
+      "@tenos/shared/*": ["../../../packages/shared/src/*"]
+    }
+  },
+  "include": ["src/**/*"]
+}

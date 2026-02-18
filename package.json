@@ -1,0 +1,24 @@
+{
+  "name": "tenos",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "apps/admin-center/server",
+    "apps/admin-center/client"
+  ],
+  "scripts": {
+    "admin:dev": "concurrently \"bun run admin:server\" \"bun run admin:client\"",
+    "admin:server": "bun run --cwd apps/admin-center/server dev",
+    "admin:client": "bun run --cwd apps/admin-center/client dev",
+    "admin:build": "bun run --cwd apps/admin-center/client build",
+    "db:generate": "bun run --cwd apps/admin-center/server db:generate",
+    "db:migrate": "bun run --cwd apps/admin-center/server db:migrate",
+    "db:seed": "bun run --cwd apps/admin-center/server db:seed",
+    "db:studio": "bun run --cwd apps/admin-center/server db:studio"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.3"
+  }
+}
