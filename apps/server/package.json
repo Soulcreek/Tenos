@@ -5,19 +5,20 @@
 	"type": "module",
 	"scripts": {
 		"dev": "bun run --watch src/main.ts",
-		"build": "bun build src/main.ts --outdir dist --target bun",
+		"build": "bun build src/main.ts --outdir dist --target bun --external colyseus --external @colyseus/ws-transport --external @colyseus/schema",
 		"start": "bun dist/main.js",
 		"typecheck": "tsc --noEmit",
 		"test": "echo 'no tests yet'"
 	},
 	"dependencies": {
-		"@tenos/shared": "workspace:*",
-		"colyseus": "^0.15.0",
+		"@colyseus/schema": "^4.0.13",
 		"@colyseus/ws-transport": "^0.15.0",
+		"@tenos/shared": "workspace:*",
 		"bitecs": "^0.3.40",
+		"colyseus": "^0.15.0",
 		"drizzle-orm": "^0.38.0",
-		"postgres": "^3.4.0",
-		"ioredis": "^5.4.0"
+		"ioredis": "^5.4.0",
+		"postgres": "^3.4.0"
 	},
 	"devDependencies": {
 		"@types/bun": "^1.2.0",
