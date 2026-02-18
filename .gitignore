@@ -1,16 +1,24 @@
 # Dependencies
 node_modules/
-.bun/
 
-# Build outputs
+# Build output
 dist/
-.output/
-*.tsbuildinfo
+build/
 
-# Environment files
+# Bun
+bun.lockb
+
+# Environment
 .env
 .env.local
 .env.*.local
+
+# WASM
+*.wasm
+
+# Playwright
+playwright-report/
+test-results/
 
 # IDE
 .vscode/
@@ -18,19 +26,9 @@ dist/
 *.swp
 *.swo
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-logs/
-
-# Database
-drizzle/
-
-# Misc
-*.lock
-!bun.lockb
-coverage/
-.nyc_output/
+# Docker
+.docker/

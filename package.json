@@ -1,24 +1,24 @@
 {
-  "name": "tenos",
-  "private": true,
-  "workspaces": [
-    "packages/*",
-    "apps/*",
-    "apps/admin-center/server",
-    "apps/admin-center/client"
-  ],
-  "scripts": {
-    "admin:dev": "concurrently \"bun run admin:server\" \"bun run admin:client\"",
-    "admin:server": "bun run --cwd apps/admin-center/server dev",
-    "admin:client": "bun run --cwd apps/admin-center/client dev",
-    "admin:build": "bun run --cwd apps/admin-center/client build",
-    "db:generate": "bun run --cwd apps/admin-center/server db:generate",
-    "db:migrate": "bun run --cwd apps/admin-center/server db:migrate",
-    "db:seed": "bun run --cwd apps/admin-center/server db:seed",
-    "db:studio": "bun run --cwd apps/admin-center/server db:studio"
-  },
-  "devDependencies": {
-    "concurrently": "^9.1.0",
-    "typescript": "^5.7.3"
-  }
+	"name": "tenos",
+	"private": true,
+	"workspaces": ["apps/*", "packages/*"],
+	"scripts": {
+		"dev": "bun run --filter '*' dev",
+		"dev:client": "bun run --filter @tenos/client dev",
+		"dev:server": "bun run --filter @tenos/server dev",
+		"build": "bun run --filter @tenos/shared build && bun run --filter @tenos/client build && bun run --filter @tenos/server build",
+		"build:client": "bun run --filter @tenos/client build",
+		"build:server": "bun run --filter @tenos/server build",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"typecheck": "bun run --filter '*' typecheck",
+		"test": "bun run --filter '*' test",
+		"test:e2e": "bunx playwright test",
+		"copy:wasm": "bun scripts/copy-wasm.ts"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.0",
+		"@playwright/test": "^1.50.0",
+		"typescript": "^5.7.0"
+	}
 }

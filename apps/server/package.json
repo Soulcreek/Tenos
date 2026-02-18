@@ -1,0 +1,27 @@
+{
+	"name": "@tenos/server",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "bun run --watch src/main.ts",
+		"build": "bun build src/main.ts --outdir dist --target bun",
+		"start": "bun dist/main.js",
+		"typecheck": "tsc --noEmit",
+		"test": "echo 'no tests yet'"
+	},
+	"dependencies": {
+		"@tenos/shared": "workspace:*",
+		"colyseus": "^0.15.0",
+		"@colyseus/ws-transport": "^0.15.0",
+		"bitecs": "^0.3.40",
+		"drizzle-orm": "^0.38.0",
+		"postgres": "^3.4.0",
+		"ioredis": "^5.4.0"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.2.0",
+		"typescript": "^5.7.0",
+		"drizzle-kit": "^0.30.0"
+	}
+}

@@ -1,38 +1,71 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: tenos-postgres
     restart: unless-stopped
-    ports:
-      - '5432:5432'
     environment:
       POSTGRES_USER: tenos
-      POSTGRES_PASSWORD: tenos_dev
+      POSTGRES_PASSWORD: tenos
       POSTGRES_DB: tenos
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - tenos-pg-data:/var/lib/postgresql/data
+    networks:
+      - tenos-internal
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U tenos']
+      test: ["CMD-SHELL", "pg_isready -U tenos"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: tenos-redis
     restart: unless-stopped
-    ports:
-      - '6379:6379'
+    command: redis-server --appendonly yes
     volumes:
-      - redis_data:/data
+      - tenos-redis-data:/data
+    networks:
+      - tenos-internal
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: "2567"
+      NODE_ENV: production
+      DATABASE_URL: postgres://tenos:tenos@postgres:5432/tenos
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tenos-internal
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tenos.rule=Host(`tenos.kvlabs.de`)"
+      - "traefik.http.routers.tenos.entrypoints=https"
+      - "traefik.http.routers.tenos.tls=true"
+      - "traefik.http.routers.tenos-http.rule=Host(`tenos.kvlabs.de`)"
+      - "traefik.http.routers.tenos-http.entrypoints=http"
+      - "traefik.http.routers.tenos-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+      - "traefik.http.services.tenos.loadbalancer.server.port=2567"
+      - "traefik.http.middlewares.tenos-compress.compress=true"
+      - "traefik.http.routers.tenos.middlewares=tenos-compress"
+
 volumes:
-  postgres_data:
-  redis_data:
+  tenos-pg-data:
+  tenos-redis-data:
+
+networks:
+  tenos-internal:
+    driver: bridge
+  coolify:
+    external: true

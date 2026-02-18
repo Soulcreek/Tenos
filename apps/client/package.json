@@ -1,0 +1,26 @@
+{
+	"name": "@tenos/client",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build",
+		"preview": "vite preview",
+		"typecheck": "tsc --noEmit",
+		"test": "echo 'no tests yet'"
+	},
+	"dependencies": {
+		"@tenos/shared": "workspace:*",
+		"@babylonjs/core": "^7.0.0",
+		"@babylonjs/havok": "^1.3.0",
+		"bitecs": "^0.3.40",
+		"colyseus.js": "^0.15.0",
+		"solid-js": "^1.9.0"
+	},
+	"devDependencies": {
+		"typescript": "^5.7.0",
+		"vite": "^6.0.0",
+		"vite-plugin-solid": "^2.10.0"
+	}
+}
