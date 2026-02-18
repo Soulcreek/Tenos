@@ -5,6 +5,7 @@ import { db } from '../db/index.js';
 import { adminSchemas, accountSchemas, characterSchemas, serverSchemas } from '../db/index.js';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../services/audit.js';
+import { toolExecutionRateLimit } from '../middleware/rate-limit.js';
 import { eq, and, sql, count, desc, gte, lte, like, inArray } from 'drizzle-orm';
 import type { AuthUser } from '../middleware/auth.js';
 import type { KombifyTool, ToolParameter } from '@tenos/shared';
@@ -1198,6 +1199,7 @@ const executeSchema = z.object({
 
 tools.post(
   '/:id/execute',
+  toolExecutionRateLimit,
   zValidator('json', executeSchema),
   async (c) => {
     const user = c.get('user');

@@ -1,5 +1,5 @@
-import { createResource, Show, For, type JSX } from 'solid-js';
-import { dashboard } from '../lib/api';
+import { createResource, createSignal, onMount, onCleanup, Show, For, type JSX } from 'solid-js';
+import { dashboard, subscribeDashboard } from '../lib/api';
 import type {
   ApiResponse,
   DashboardStats,
@@ -485,10 +485,31 @@ export default function Dashboard() {
     sorcerer: '#a371f7',
   };
 
+  // Auto-refresh: poll stats every 30 seconds
+  const [autoRefresh, setAutoRefresh] = createSignal(true);
+  const [lastUpdated, setLastUpdated] = createSignal<string>(new Date().toLocaleTimeString());
+  let refreshInterval: ReturnType<typeof setInterval> | undefined;
+
+  onMount(() => {
+    refreshInterval = setInterval(() => {
+      if (autoRefresh()) {
+        refetchStats();
+        refetchServers();
+        refetchActivity();
+        setLastUpdated(new Date().toLocaleTimeString());
+      }
+    }, 30_000);
+  });
+
+  onCleanup(() => {
+    if (refreshInterval) clearInterval(refreshInterval);
+  });
+
   function handleRefreshAll() {
     refetchStats();
     refetchServers();
     refetchActivity();
+    setLastUpdated(new Date().toLocaleTimeString());
   }
 
   return (
@@ -531,22 +552,41 @@ export default function Dashboard() {
               Server overview and real-time statistics
             </p>
           </div>
-          <button
-            onClick={handleRefreshAll}
-            style={{
-              background: colors.bg2,
-              border: `1px solid ${colors.bg3}`,
-              color: colors.text,
-              padding: '10px 20px',
-              'border-radius': '8px',
-              cursor: 'pointer',
-              'font-size': '13px',
-              'font-weight': '500',
-              transition: 'background-color 0.2s ease',
-            }}
-          >
-            Refresh
-          </button>
+          <div style={{ display: 'flex', 'align-items': 'center', gap: '12px' }}>
+            <span style={{ 'font-size': '12px', color: colors.textMuted }}>
+              Updated {lastUpdated()}
+            </span>
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh())}
+              style={{
+                background: autoRefresh() ? '#0d2818' : colors.bg2,
+                border: `1px solid ${autoRefresh() ? colors.green : colors.bg3}`,
+                color: autoRefresh() ? colors.green : colors.textMuted,
+                padding: '8px 14px',
+                'border-radius': '6px',
+                cursor: 'pointer',
+                'font-size': '12px',
+              }}
+            >
+              {autoRefresh() ? '\u25CF Live' : '\u25CB Paused'}
+            </button>
+            <button
+              onClick={handleRefreshAll}
+              style={{
+                background: colors.bg2,
+                border: `1px solid ${colors.bg3}`,
+                color: colors.text,
+                padding: '10px 20px',
+                'border-radius': '8px',
+                cursor: 'pointer',
+                'font-size': '13px',
+                'font-weight': '500',
+                transition: 'background-color 0.2s ease',
+              }}
+            >
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Stats Cards */}

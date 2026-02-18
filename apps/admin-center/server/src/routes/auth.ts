@@ -11,6 +11,7 @@ import {
   type AuthUser,
 } from '../middleware/auth.js';
 import { logAudit } from '../services/audit.js';
+import { loginRateLimit } from '../middleware/rate-limit.js';
 import { AuditAction } from '@tenos/shared';
 
 const auth = new Hono();
@@ -70,7 +71,7 @@ async function recordLoginAttempt(
 // POST /login
 // ---------------------------------------------------------------------------
 
-auth.post('/login', zValidator('json', loginSchema), async (c) => {
+auth.post('/login', loginRateLimit, zValidator('json', loginSchema), async (c) => {
   const { username, password } = c.req.valid('json');
   const ipAddress = getClientIp(c);
   const userAgent = getUserAgent(c);

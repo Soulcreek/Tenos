@@ -1,6 +1,7 @@
 import { createSignal, createEffect, Show, For, onMount } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { players } from '../lib/api';
+import { players, downloadCsv } from '../lib/api';
+import { toastStore } from '../stores/toast';
 
 const PAGE_SIZE = 20;
 
@@ -83,18 +84,53 @@ export default function Players() {
   return (
     <div style={{ padding: '24px', "max-width": '1400px', margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ "margin-bottom": '24px' }}>
-        <h1 style={{
-          margin: '0 0 4px 0',
-          "font-size": '24px',
-          "font-weight": '600',
-          color: '#e6edf3',
-        }}>
-          Player Management
-        </h1>
-        <p style={{ margin: 0, color: '#8b949e', "font-size": '14px' }}>
-          Search, view, and manage player accounts
-        </p>
+      <div style={{ "margin-bottom": '24px', display: 'flex', 'justify-content': 'space-between', 'align-items': 'flex-start' }}>
+        <div>
+          <h1 style={{
+            margin: '0 0 4px 0',
+            "font-size": '24px',
+            "font-weight": '600',
+            color: '#e6edf3',
+          }}>
+            Player Management
+          </h1>
+          <p style={{ margin: 0, color: '#8b949e', "font-size": '14px' }}>
+            Search, view, and manage player accounts
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            const data = playerList();
+            if (data && data.length > 0) {
+              downloadCsv(
+                data.map((p: any) => ({
+                  username: p.username,
+                  email: p.email,
+                  role: p.role,
+                  banned: p.isBanned ? 'Yes' : 'No',
+                  lastLogin: p.lastLogin ?? 'Never',
+                  createdAt: p.createdAt,
+                })),
+                `players-export-${new Date().toISOString().slice(0, 10)}.csv`,
+              );
+              toastStore.success('Player data exported');
+            } else {
+              toastStore.warn('No data to export');
+            }
+          }}
+          style={{
+            background: '#21262d',
+            border: '1px solid #30363d',
+            color: '#e6edf3',
+            padding: '8px 16px',
+            'border-radius': '6px',
+            cursor: 'pointer',
+            'font-size': '13px',
+            'white-space': 'nowrap',
+          }}
+        >
+          Export CSV
+        </button>
       </div>
 
       {/* Search & Filter Bar */}

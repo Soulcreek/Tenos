@@ -316,3 +316,82 @@ export const tools = {
     status?: string;
   }) => request<PaginatedResponse<any>>('/tools/executions/history', { params: params as any }),
 };
+
+// --- SSE Helpers ---
+
+export function subscribeDashboard(onMessage: (data: any) => void): () => void {
+  const url = `${API_BASE}/events/dashboard`;
+  const headers: Record<string, string> = {};
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
+  // EventSource doesn't support custom headers, so we use fetch-based SSE
+  let aborted = false;
+
+  async function connect() {
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!res.ok || !res.body) return;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (!aborted) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        let eventData = '';
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            eventData += line.slice(6);
+          } else if (line === '' && eventData) {
+            try {
+              onMessage(JSON.parse(eventData));
+            } catch { /* malformed JSON */ }
+            eventData = '';
+          }
+        }
+      }
+    } catch {
+      // Reconnect after delay
+      if (!aborted) setTimeout(connect, 5000);
+    }
+  }
+
+  connect();
+  return () => { aborted = true; };
+}
+
+// --- CSV Export ---
+
+export function downloadCsv(data: Record<string, unknown>[], filename: string) {
+  if (data.length === 0) return;
+  const keys = Object.keys(data[0]);
+  const header = keys.join(',');
+  const rows = data.map((row) =>
+    keys
+      .map((k) => {
+        const val = row[k];
+        if (val == null) return '';
+        const str = String(val);
+        // Escape CSV values with commas, quotes, or newlines
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      })
+      .join(','),
+  );
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

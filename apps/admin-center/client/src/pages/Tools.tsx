@@ -1,5 +1,6 @@
 import { createSignal, createEffect, onMount, Show, For, type JSX } from 'solid-js';
 import { tools } from '../lib/api';
+import { toastStore } from '../stores/toast';
 import { ZONES, KOMBIFY_TOOL_CATEGORIES } from '@tenos/shared';
 import type { KombifyTool, ToolParameter, ToolExecution } from '@tenos/shared';
 
@@ -283,9 +284,11 @@ function ToolExecutionPanel(props: {
         affectedCount: data.affectedCount,
         data: data.data,
       });
+      toastStore.success(`${props.tool.name}: ${data.message ?? 'Completed'}`);
       props.onExecuted();
     } catch (err: any) {
       setError(err.message ?? 'Execution failed');
+      toastStore.error(`${props.tool.name} failed: ${err.message ?? 'Unknown error'}`);
     } finally {
       setExecuting(false);
     }

@@ -1,6 +1,7 @@
-import { logs } from '../lib/api';
+import { logs, downloadCsv } from '../lib/api';
 import { createSignal, createEffect, Show, For, onMount } from 'solid-js';
 import { authStore } from '../stores/auth';
+import { toastStore } from '../stores/toast';
 
 const PAGE_SIZE = 20;
 
@@ -317,6 +318,7 @@ export default function Logs() {
         expiresAt: formExpires() || undefined,
       });
       setFormSuccess('Announcement created successfully.');
+      toastStore.success('Announcement created');
       setFormTitle('');
       setFormMessage('');
       setFormType('info');
@@ -327,6 +329,7 @@ export default function Logs() {
       fetchAnnouncements();
     } catch (err: any) {
       setFormError(err.message ?? 'Failed to create announcement');
+      toastStore.error(err.message ?? 'Failed to create announcement');
     } finally {
       setFormSubmitting(false);
     }
@@ -336,10 +339,12 @@ export default function Logs() {
     setDeleteLoading(true);
     try {
       await logs.deleteAnnouncement(id);
+      toastStore.success('Announcement deleted');
       setDeleteConfirmId(null);
       fetchAnnouncements();
     } catch (err: any) {
       setAnnError(err.message ?? 'Failed to delete announcement');
+      toastStore.error(err.message ?? 'Failed to delete announcement');
     } finally {
       setDeleteLoading(false);
     }
@@ -423,6 +428,42 @@ export default function Logs() {
       {/* TAB 1: AUDIT LOGS                                                 */}
       {/* ================================================================= */}
       <Show when={activeTab() === 'audit'}>
+        {/* Export Button */}
+        <div style={{ display: 'flex', 'justify-content': 'flex-end', 'margin-bottom': '12px' }}>
+          <button
+            onClick={() => {
+              const entries = auditEntries();
+              if (entries && entries.length > 0) {
+                downloadCsv(
+                  entries.map((e: any) => ({
+                    timestamp: e.createdAt,
+                    action: e.action,
+                    actor: e.actorUsername,
+                    targetType: e.targetType ?? '',
+                    targetId: e.targetId ?? '',
+                    ipAddress: e.ipAddress,
+                    details: JSON.stringify(e.details),
+                  })),
+                  `audit-log-${new Date().toISOString().slice(0, 10)}.csv`,
+                );
+                toastStore.success('Audit log exported');
+              } else {
+                toastStore.warn('No audit entries to export');
+              }
+            }}
+            style={{
+              background: '#21262d',
+              border: `1px solid ${colors.border}`,
+              color: colors.text,
+              padding: '8px 16px',
+              'border-radius': '6px',
+              cursor: 'pointer',
+              'font-size': '13px',
+            }}
+          >
+            Export CSV
+          </button>
+        </div>
         {/* Filter Bar */}
         <form
           onSubmit={handleAuditSearch}

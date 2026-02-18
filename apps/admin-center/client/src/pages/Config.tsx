@@ -1,5 +1,6 @@
 import { createSignal, createEffect, Show, For, onMount } from 'solid-js';
 import { config } from '../lib/api';
+import { toastStore } from '../stores/toast';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -217,11 +218,13 @@ export default function Config() {
     try {
       await config.bulkUpdate(updates);
       setSaveSuccess(true);
+      toastStore.success(`Saved ${updates.length} configuration change${updates.length > 1 ? 's' : ''}`);
       setTimeout(() => setSaveSuccess(false), 3000);
       // Refresh data
       await fetchEntries();
     } catch (err: any) {
       setSaveError(err.message ?? 'Failed to save changes');
+      toastStore.error(err.message ?? 'Failed to save configuration');
     } finally {
       setSaving(false);
     }

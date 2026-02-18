@@ -1,6 +1,7 @@
 import { createSignal, createResource, For, Show } from 'solid-js';
 import { A } from '@solidjs/router';
-import { characters } from '../lib/api';
+import { characters, downloadCsv } from '../lib/api';
+import { toastStore } from '../stores/toast';
 
 const CLASS_COLORS: Record<string, string> = {
   warrior: '#f85149',
@@ -247,7 +248,43 @@ export default function Characters() {
 
   return (
     <div style={containerStyle}>
-      <h1 style={headerStyle}>Characters</h1>
+      <div style={{ display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', 'margin-bottom': '24px' }}>
+        <h1 style={{ ...headerStyle, 'margin-bottom': '0' }}>Characters</h1>
+        <button
+          onClick={() => {
+            const items = data()?.data;
+            if (items && items.length > 0) {
+              downloadCsv(
+                items.map((ch: any) => ({
+                  name: ch.name,
+                  class: ch.characterClass,
+                  level: ch.level,
+                  kingdom: ch.kingdom,
+                  zone: ch.zone,
+                  gold: ch.gold,
+                  online: ch.isOnline ? 'Yes' : 'No',
+                  playTime: `${ch.playTimeMinutes}m`,
+                })),
+                `characters-export-${new Date().toISOString().slice(0, 10)}.csv`,
+              );
+              toastStore.success('Character data exported');
+            } else {
+              toastStore.warn('No data to export');
+            }
+          }}
+          style={{
+            background: '#21262d',
+            border: '1px solid #30363d',
+            color: '#e6edf3',
+            padding: '8px 16px',
+            'border-radius': '6px',
+            cursor: 'pointer',
+            'font-size': '13px',
+          }}
+        >
+          Export CSV
+        </button>
+      </div>
 
       {/* Search & Filter Bar */}
       <div style={filterBarStyle}>

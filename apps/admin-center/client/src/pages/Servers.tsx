@@ -1,6 +1,7 @@
-import { createSignal, createEffect, Show, For, onMount } from 'solid-js';
+import { createSignal, createEffect, Show, For, onMount, onCleanup } from 'solid-js';
 import { servers } from '../lib/api';
 import { authStore } from '../stores/auth';
+import { toastStore } from '../stores/toast';
 import type { ApiResponse, GameServer, ZoneInfo } from '@tenos/shared';
 
 // ---------------------------------------------------------------------------
@@ -574,8 +575,18 @@ export default function Servers() {
     }
   }
 
+  const [autoRefresh, setAutoRefresh] = createSignal(true);
+  let refreshInterval: ReturnType<typeof setInterval> | undefined;
+
   onMount(() => {
     fetchServers();
+    refreshInterval = setInterval(() => {
+      if (autoRefresh()) fetchServers();
+    }, 15_000); // Refresh every 15 seconds
+  });
+
+  onCleanup(() => {
+    if (refreshInterval) clearInterval(refreshInterval);
   });
 
   function handleActionRequest(serverId: string, action: string) {
@@ -601,9 +612,11 @@ export default function Servers() {
       if (fn) {
         await fn(pending.serverId);
       }
+      toastStore.success(`Server "${pending.serverName}" — ${pending.action} command sent`);
       // Refresh the server list after a successful action
       await fetchServers();
     } catch (err: any) {
+      toastStore.error(err.message ?? `Failed to ${pending.action} server`);
       setError(err.message ?? `Failed to ${pending.action} server`);
     } finally {
       setActionLoading(null);
