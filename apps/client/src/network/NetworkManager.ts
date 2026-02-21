@@ -108,14 +108,9 @@ export class NetworkManager {
 
 	constructor(serverUrl?: string) {
 		if (!serverUrl) {
-			const envUrl = import.meta.env.VITE_WS_URL as string | undefined;
-			if (envUrl) {
-				serverUrl = envUrl;
-			} else {
-				// Production: auto-detect protocol and use same origin (behind reverse proxy)
-				const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-				serverUrl = `${protocol}//${window.location.host}`;
-			}
+			// Use VITE_WS_URL for local dev, otherwise let Colyseus auto-detect from window.location
+			const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+			serverUrl = `${protocol}//${window.location.host}`;
 		}
 		this.client = new Client(serverUrl);
 	}
