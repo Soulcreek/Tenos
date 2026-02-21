@@ -19,7 +19,11 @@ const remoteExit = exitQuery(remoteQuery);
  * - Disposes meshes for removed entities
  * - Lerps remote entity mesh positions for smooth movement
  */
-export function createMeshSyncSystem(scene: Scene, shadowGenerator: ShadowGenerator) {
+export function createMeshSyncSystem(
+	scene: Scene,
+	shadowGenerator: ShadowGenerator,
+	eidToNetId?: Map<number, number>,
+) {
 	const meshes = new Map<number, CharacterRenderer>();
 	let nextColorIdx = 0;
 	const colors = [
@@ -38,9 +42,11 @@ export function createMeshSyncSystem(scene: Scene, shadowGenerator: ShadowGenera
 			const color = colors[nextColorIdx % colors.length];
 			nextColorIdx++;
 
+			const netId = eidToNetId?.get(eid) ?? 0;
 			const renderer = new CharacterRenderer(scene, shadowGenerator, {
 				name: `remote_${eid}`,
 				color,
+				netId,
 			});
 			meshes.set(eid, renderer);
 		}

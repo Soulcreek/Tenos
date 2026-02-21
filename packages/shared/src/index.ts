@@ -1,7 +1,12 @@
 export * from "./constants/index.js";
 export * from "./constants/physics.js";
+export * from "./constants/combat.js";
 export * from "./ecs/components.js";
 export * from "./ecs/world.js";
 export { movementSystem } from "./ecs/systems/MovementSystem.js";
 export * from "./network/messages.js";
 export * from "./types/index.js";
+export * from "./data/monsters.js";
+export * from "./data/loot-tables.js";
+export { SHINSOO_SPAWNS } from "./data/zones/village-shinsoo.js";
+export type { SpawnPoint } from "./data/zones/village-shinsoo.js";

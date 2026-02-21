@@ -14,6 +14,8 @@ export class InputManager {
 	mouseY = 0;
 	/** Left-click event consumed this frame. */
 	leftClickThisFrame = false;
+	/** Tab key pressed this frame. */
+	tabPressedThisFrame = false;
 
 	constructor(canvas: HTMLCanvasElement) {
 		window.addEventListener("keydown", this.onKeyDown);
@@ -63,6 +65,7 @@ export class InputManager {
 	/** Call once per frame to consume single-frame events. */
 	resetFrameState(): void {
 		this.leftClickThisFrame = false;
+		this.tabPressedThisFrame = false;
 	}
 
 	/** Suppress all gameplay input (e.g. when chat input is focused). */
@@ -87,7 +90,13 @@ export class InputManager {
 		const tag = (e.target as HTMLElement)?.tagName;
 		if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
-		this.keys.add(e.key.toLowerCase());
+		const key = e.key.toLowerCase();
+		this.keys.add(key);
+
+		if (key === "tab") {
+			e.preventDefault();
+			this.tabPressedThisFrame = true;
+		}
 	};
 
 	private onKeyUp = (e: KeyboardEvent): void => {

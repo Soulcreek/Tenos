@@ -31,17 +31,18 @@
       "name": "@tenos/server",
       "version": "0.1.0",
       "dependencies": {
-        "@colyseus/schema": "^4.0.13",
-        "@colyseus/ws-transport": "^0.15.0",
+        "@colyseus/schema": "2.0.35",
+        "@colyseus/ws-transport": "0.15.3",
         "@tenos/shared": "workspace:*",
         "bitecs": "^0.3.40",
-        "colyseus": "^0.15.0",
+        "colyseus": "0.15.57",
         "drizzle-orm": "^0.38.0",
         "ioredis": "^5.4.0",
         "postgres": "^3.4.0",
       },
       "devDependencies": {
         "@types/bun": "^1.2.0",
+        "colyseus.js": "0.15",
         "drizzle-kit": "^0.30.0",
         "typescript": "^5.7.0",
       },
@@ -127,7 +128,7 @@
 
     "@colyseus/redis-presence": ["@colyseus/redis-presence@0.15.6", "", { "dependencies": { "@colyseus/core": "^0.15.57", "ioredis": "^5.3.2" } }, "sha512-hz/3/BWHo9j76oxEFLphhbom0qDjwZ9uM++/JFxYL3qlkwPqqth1lG6NI+O20JqIxnj57J0zNbsBPRjFzRSXQw=="],
 
-    "@colyseus/schema": ["@colyseus/schema@4.0.13", "", { "peerDependencies": { "typescript": "^5.9.3" }, "bin": { "schema-codegen": "bin/schema-codegen", "schema-debug": "bin/schema-debug" } }, "sha512-bAlm9MFQGovAADtiSdeEoRuwENGEXhW1zJ/9NLe4HNM3PUVjpuGpo207IMcwrU9M3E1Nd6XGPNHY57rlIuYH0A=="],
+    "@colyseus/schema": ["@colyseus/schema@2.0.35", "", { "bin": { "schema-codegen": "bin/schema-codegen" } }, "sha512-Bc1dyKCPfjDpm126r6f6qu8/Q+BXcJMd9foVfR3k7YCxRm3HnN7LNqUx1nkL9/WgLVeFSItoJIqN7AxmNYzn9w=="],
 
     "@colyseus/ws-transport": ["@colyseus/ws-transport@0.15.3", "", { "dependencies": { "@types/ws": "^7.4.4", "ws": "^8.18.0" }, "peerDependencies": { "@colyseus/core": "0.15.x", "@colyseus/schema": ">=1.0.0" } }, "sha512-wm1AT1d6esUnZt1sUvrPcq9hkDBhZKZiB+fHCZEaPw3QDtG9slbOaZZ9Evr2DlxUUAaHU0H2qV3kchBYyL68UQ=="],
 
@@ -653,8 +654,6 @@
 
     "yallist": ["yallist@3.1.1", "", {}, "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g=="],
 
-    "@colyseus/core/@colyseus/schema": ["@colyseus/schema@2.0.37", "", { "bin": { "schema-codegen": "bin/schema-codegen" } }, "sha512-+WXEux9DMSaTz9hZKabl6LBuzsxzt9EvOwhXJ/G4rPCaaVkJ+iLxRsq8VbL2ZCx18E/uQH6nLaNIQVqH9wEt8w=="],
-
     "@colyseus/core/nanoid": ["nanoid@2.1.11", "", {}, "sha512-s/snB+WGm6uwi0WjsZdaVcuf3KJXlfGl2LcxgwkEwJF0D/BWzVWAZW/XY4bFaiR7s0Jk3FPvlnepg1H1b1UwlA=="],
 
     "@colyseus/core/ws": ["ws@7.5.10", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": "^5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-+dbF1tHwZpXcbOJdVOkzLDxZP1ailvSxM6ZweXTegylPny803bFhA+vqBYw4s31NSAk4S2Qz+AKXK9a4wkdjcQ=="],
@@ -666,8 +665,6 @@
     "body-parser/debug": ["debug@2.6.9", "", { "dependencies": { "ms": "2.0.0" } }, "sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA=="],
 
     "body-parser/qs": ["qs@6.14.2", "", { "dependencies": { "side-channel": "^1.1.0" } }, "sha512-V/yCWTTF7VJ9hIh18Ugr2zhJMP01MY7c5kh4J870L7imm6/DIzBsNLTXzMwUA3yZ5b/KBqLx8Kp3uRvd7xSe3Q=="],
-
-    "colyseus/@colyseus/schema": ["@colyseus/schema@2.0.37", "", { "bin": { "schema-codegen": "bin/schema-codegen" } }, "sha512-+WXEux9DMSaTz9hZKabl6LBuzsxzt9EvOwhXJ/G4rPCaaVkJ+iLxRsq8VbL2ZCx18E/uQH6nLaNIQVqH9wEt8w=="],
 
     "colyseus.js/@colyseus/schema": ["@colyseus/schema@2.0.37", "", { "bin": { "schema-codegen": "bin/schema-codegen" } }, "sha512-+WXEux9DMSaTz9hZKabl6LBuzsxzt9EvOwhXJ/G4rPCaaVkJ+iLxRsq8VbL2ZCx18E/uQH6nLaNIQVqH9wEt8w=="],
 

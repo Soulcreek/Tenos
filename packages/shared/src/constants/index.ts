@@ -20,7 +20,7 @@ export const SKILL_POINTS_PER_LEVEL = 1;
 
 export const XP_TABLE: Record<number, number> = {};
 for (let i = 1; i <= 120; i++) {
-	XP_TABLE[i] = Math.floor(100 * 1.15 ** (i - 1));
+	XP_TABLE[i] = Math.floor(100 * i ** 2.2);
 }
 
 export const EQUIPMENT_SLOTS = [

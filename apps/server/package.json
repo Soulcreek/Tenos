@@ -8,21 +8,25 @@
 		"build": "bun build src/main.ts --outdir dist --target bun --external colyseus --external @colyseus/ws-transport --external @colyseus/schema",
 		"start": "bun dist/main.js",
 		"typecheck": "tsc --noEmit",
-		"test": "echo 'no tests yet'"
+		"test": "bun test src/",
+		"db:generate": "bunx drizzle-kit generate",
+		"db:migrate": "bunx drizzle-kit migrate",
+		"db:studio": "bunx drizzle-kit studio"
 	},
 	"dependencies": {
-		"@colyseus/schema": "^4.0.13",
-		"@colyseus/ws-transport": "^0.15.0",
+		"@colyseus/schema": "2.0.35",
+		"@colyseus/ws-transport": "0.15.3",
 		"@tenos/shared": "workspace:*",
 		"bitecs": "^0.3.40",
-		"colyseus": "^0.15.0",
+		"colyseus": "0.15.57",
 		"drizzle-orm": "^0.38.0",
 		"ioredis": "^5.4.0",
 		"postgres": "^3.4.0"
 	},
 	"devDependencies": {
 		"@types/bun": "^1.2.0",
-		"typescript": "^5.7.0",
-		"drizzle-kit": "^0.30.0"
+		"colyseus.js": "0.15",
+		"drizzle-kit": "^0.30.0",
+		"typescript": "^5.7.0"
 	}
 }

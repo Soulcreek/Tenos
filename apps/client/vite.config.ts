@@ -6,10 +6,13 @@ export default defineConfig({
 	server: {
 		port: 3000,
 		proxy: {
-			"/ws": {
-				target: "ws://localhost:2567",
-				ws: true,
+			// Colyseus matchmaking (HTTP POST → room allocation)
+			"/matchmake": {
+				target: "http://localhost:2567",
+				changeOrigin: true,
 			},
+			// Colyseus WebSocket room connections (dynamic paths: /<processId>/<roomId>)
+			// Falls back to direct connection via VITE_WS_URL in .env
 		},
 	},
 	optimizeDeps: {

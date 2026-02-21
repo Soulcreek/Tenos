@@ -14,6 +14,25 @@ import { TerrainManager } from "../terrain/TerrainManager.js";
 
 // Side-effect imports required for tree-shaking
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
+import "@babylonjs/core/Particles/particleSystemComponent";
+import "@babylonjs/core/Physics/joinedPhysicsEngineComponent";
+
+// Pre-import shaders to avoid dynamic import failures in production
+import "@babylonjs/core/Shaders/default.vertex";
+import "@babylonjs/core/Shaders/default.fragment";
+import "@babylonjs/core/Shaders/color.vertex";
+import "@babylonjs/core/Shaders/color.fragment";
+import "@babylonjs/core/Shaders/shadowMap.vertex";
+import "@babylonjs/core/Shaders/shadowMap.fragment";
+import "@babylonjs/core/Shaders/depth.vertex";
+import "@babylonjs/core/Shaders/depth.fragment";
+import "@babylonjs/core/Shaders/particles.vertex";
+import "@babylonjs/core/Shaders/particles.fragment";
+import "@babylonjs/core/Shaders/kernelBlur.vertex";
+import "@babylonjs/core/Shaders/kernelBlur.fragment";
+import "@babylonjs/core/Shaders/depthBoxBlur.fragment";
+import "@babylonjs/core/Shaders/pass.fragment";
+import "@babylonjs/core/Shaders/postprocess.vertex";
 
 export interface SceneContext {
 	scene: Scene;

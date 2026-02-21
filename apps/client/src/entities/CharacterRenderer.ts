@@ -16,7 +16,9 @@ export class CharacterRenderer {
 	constructor(
 		scene: Scene,
 		shadowGenerator: ShadowGenerator,
-		options: { name: string; color?: Color3; position?: Vector3 } = { name: "player" },
+		options: { name: string; color?: Color3; position?: Vector3; netId?: number } = {
+			name: "player",
+		},
 	) {
 		// Capsule body (cylinder + two half-spheres)
 		const body = MeshBuilder.CreateCylinder(
@@ -44,6 +46,12 @@ export class CharacterRenderer {
 		const pos = options.position ?? new Vector3(0, 0.6, 0);
 		body.position = pos;
 
+		// Set metadata for picking
+		if (options.netId) {
+			body.metadata = { netId: options.netId, entityType: "player" };
+			head.metadata = { netId: options.netId, entityType: "player" };
+		}
+
 		// Cast shadow
 		shadowGenerator.addShadowCaster(body);
 		shadowGenerator.addShadowCaster(head);
@@ -61,6 +69,30 @@ export class CharacterRenderer {
 	/** Sets facing direction as Y-axis rotation in radians. */
 	setRotationY(rad: number): void {
 		this.mesh.rotation.y = rad;
+	}
+
+	/** Flash white on hit. */
+	flashHit(): void {
+		const mat = this.mesh.material as StandardMaterial;
+		if (!mat) return;
+		const original = mat.diffuseColor.clone();
+		mat.diffuseColor = new Color3(1, 1, 1);
+		setTimeout(() => {
+			mat.diffuseColor = original;
+		}, 100);
+	}
+
+	/** Brief lunge forward (attack animation placeholder). */
+	triggerLunge(): void {
+		const original = this.mesh.position.clone();
+		const fwd = Math.sin(this.mesh.rotation.y);
+		const fwdZ = Math.cos(this.mesh.rotation.y);
+		this.mesh.position.x += fwd * 0.3;
+		this.mesh.position.z += fwdZ * 0.3;
+		setTimeout(() => {
+			this.mesh.position.x = original.x;
+			this.mesh.position.z = original.z;
+		}, 100);
 	}
 
 	dispose(): void {

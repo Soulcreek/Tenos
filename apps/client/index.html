@@ -24,11 +24,49 @@
         z-index: 10;
       }
       #ui-root * { pointer-events: auto; }
+      #loading-screen {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        display: flex; align-items: center; justify-content: center;
+        flex-direction: column; gap: 12px;
+        color: #ccc; font-family: monospace; font-size: 14px;
+        z-index: 100; background: #000;
+      }
+      #loading-screen .spinner {
+        width: 32px; height: 32px;
+        border: 3px solid #333; border-top-color: #aaa;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      #error-overlay {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        display: none; align-items: center; justify-content: center;
+        flex-direction: column; gap: 8px; padding: 20px;
+        color: #ff6b6b; font-family: monospace; font-size: 13px;
+        z-index: 200; background: rgba(0,0,0,0.9);
+        white-space: pre-wrap; text-align: center;
+      }
     </style>
   </head>
   <body>
     <canvas id="game-canvas"></canvas>
     <div id="ui-root"></div>
+    <div id="loading-screen"><div class="spinner"></div><span>Loading Tenos...</span></div>
+    <div id="error-overlay"></div>
+    <script>
+      window.__tenosError = function(msg) {
+        var el = document.getElementById('error-overlay');
+        if (el) { el.style.display = 'flex'; el.textContent = msg; }
+      };
+      window.addEventListener('error', function(e) {
+        window.__tenosError('Error: ' + e.message + '\n' + (e.filename || '') + ':' + (e.lineno || ''));
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        window.__tenosError('Unhandled: ' + (e.reason && e.reason.message || e.reason || 'unknown'));
+      });
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

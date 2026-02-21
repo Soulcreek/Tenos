@@ -8,3 +8,19 @@ export {
 	LocalPlayer,
 	RemotePlayer,
 } from "./components/core.js";
+
+// Re-export combat components
+export {
+	Health,
+	Mana,
+	CombatStats,
+	Target,
+	AutoAttack,
+	Dead,
+	Monster,
+	AIState,
+	AI_STATE,
+	PendingXP,
+	LootDrop,
+	Spawner,
+} from "./components/combat.js";
