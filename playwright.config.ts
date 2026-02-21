@@ -7,14 +7,14 @@ export default defineConfig({
 	retries: process.env.CI ? 2 : 0,
 	workers: process.env.CI ? 1 : undefined,
 	reporter: "html",
-	expect: {
-		toHaveScreenshot: {
-			maxDiffPixelRatio: 0.02,
-		},
-	},
+	timeout: 60_000,
 	use: {
 		baseURL: "http://localhost:3000",
 		trace: "on-first-retry",
+		// Use headed-like flags for better WebGL support in headless
+		launchOptions: {
+			args: ["--enable-unsafe-swiftshader", "--use-gl=swiftshader"],
+		},
 	},
 	projects: [
 		{

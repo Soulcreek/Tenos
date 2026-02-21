@@ -613,6 +613,9 @@ async function main() {
 
 main().catch((err) => {
 	console.error("[Main] Fatal error:", err);
+	// Hide loading screen so the error overlay is clearly visible
+	const loading = document.getElementById("loading-screen");
+	if (loading) loading.style.display = "none";
 	const show = (window as unknown as { __tenosError?: (m: string) => void }).__tenosError;
 	if (show) show(String(err?.stack || err));
 });
