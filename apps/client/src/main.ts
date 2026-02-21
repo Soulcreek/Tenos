@@ -5,6 +5,7 @@ import {
 	type EquipmentSlots,
 	type InventorySlot,
 	LocalPlayer,
+	MONSTER_TYPES,
 	Position,
 	RemotePlayer,
 	Rotation,
@@ -388,8 +389,9 @@ async function main() {
 			if (netId === 0) return null;
 			const monsterData = network.getRemoteMonsters().get(netId);
 			if (monsterData) {
+				const def = MONSTER_TYPES[monsterData.typeId];
 				return {
-					name: `Monster Lv.${monsterData.level}`,
+					name: def?.name ?? `Monster Lv.${monsterData.level}`,
 					typeId: monsterData.typeId,
 					hp: monsterData.hp,
 					hpMax: monsterData.hpMax,

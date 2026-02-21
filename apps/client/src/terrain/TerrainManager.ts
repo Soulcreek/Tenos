@@ -5,7 +5,7 @@ import { Color3 } from "@babylonjs/core/Maths/math.color";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import type { Scene } from "@babylonjs/core/scene";
-import { scatterRocks, scatterTrees } from "./TerrainProps.js";
+import { buildPond, buildVillage, scatterRocks, scatterTrees } from "./TerrainProps.js";
 
 export const TERRAIN_SIZE = 128;
 const TERRAIN_SUBDIVISIONS = 4;
@@ -36,6 +36,10 @@ export class TerrainManager {
 		// ── Terrain Props (trees + rocks) ──────────────────────────
 		scatterTrees(scene);
 		scatterRocks(scene);
+
+		// ── Village Structures ──────────────────────────────────────
+		buildVillage(scene);
+		buildPond(scene);
 	}
 
 	/**

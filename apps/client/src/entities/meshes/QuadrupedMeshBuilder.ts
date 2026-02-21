@@ -23,7 +23,7 @@ const SHAPE_PARAMS: Record<QuadrupedShape, ShapeParams> = {
 	tiger: { bodyLen: 1.0, bodyWidth: 0.35, bodyHeight: 0.28, legLength: 0.4, headSize: 0.28 },
 };
 
-/** Maps monster typeId to quadruped shape. typeId 4 (Bandit Scout) uses humanoid instead. */
+/** Maps monster typeId to quadruped shape. Humanoid types use humanoid mesh instead. */
 export function typeIdToShape(typeId: number): QuadrupedShape | "humanoid" {
 	switch (typeId) {
 		case 1:
@@ -33,9 +33,19 @@ export function typeIdToShape(typeId: number): QuadrupedShape | "humanoid" {
 		case 3:
 			return "bear";
 		case 4:
-			return "humanoid";
+			return "humanoid"; // Bandit Scout
 		case 5:
 			return "tiger";
+		case 6:
+			return "bear"; // Wild Boar — stocky like bear
+		case 7:
+			return "dog"; // Giant Spider — low & fast like dog
+		case 8:
+			return "humanoid"; // Bandit Archer
+		case 9:
+			return "wolf"; // Dire Wolf
+		case 10:
+			return "humanoid"; // Bandit Captain
 		default:
 			return "dog";
 	}
