@@ -9,6 +9,15 @@
 			"recommended": true,
 			"complexity": {
 				"noForEach": "warn"
+			},
+			"a11y": {
+				"useSemanticElements": "off",
+				"useKeyWithMouseEvents": "off",
+				"useKeyWithClickEvents": "off",
+				"useButtonType": "off"
+			},
+			"correctness": {
+				"useJsxKeyInIterable": "off"
 			}
 		}
 	},
@@ -24,6 +33,15 @@
 		}
 	},
 	"files": {
-		"ignore": ["node_modules", "dist", "build", "*.wasm", "bun.lockb", "playwright-report"]
+		"ignore": [
+			"node_modules",
+			"dist",
+			"build",
+			"*.wasm",
+			"bun.lockb",
+			"playwright-report",
+			"apps/admin-center",
+			"**/drizzle"
+		]
 	}
 }

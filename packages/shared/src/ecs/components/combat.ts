@@ -108,6 +108,43 @@ export const LootDrop = defineComponent({
 	ownerHash: Types.ui32,
 });
 
+/** Character class identifier: 0=warrior, 1=magician, 2=assassin. */
+export const ClassInfo = defineComponent({
+	classId: Types.ui8,
+});
+
+/** Class ID enum values. */
+export const CLASS_ID = {
+	WARRIOR: 0,
+	MAGICIAN: 1,
+	ASSASSIN: 2,
+} as const;
+
+/** Skill cooldown timers for 2 active skill slots. */
+export const SkillCooldown = defineComponent({
+	slot1Cd: Types.f32,
+	slot2Cd: Types.f32,
+});
+
+/** Projectile entity (bolt or arrow). */
+export const Projectile = defineComponent({
+	ownerEid: Types.ui32,
+	targetEid: Types.ui32,
+	speed: Types.f32,
+	damage: Types.f32,
+	isMagic: Types.ui8,
+	isCrit: Types.ui8,
+	lifetime: Types.f32,
+});
+
+/** Active buff on an entity. */
+export const Buff = defineComponent({
+	/** Buff identifier: 1=iron_will. */
+	buffId: Types.ui8,
+	duration: Types.f32,
+	magnitude: Types.f32,
+});
+
 /** Spawner component for monster spawn points. */
 export const Spawner = defineComponent({
 	/** Monster type ID to spawn. */

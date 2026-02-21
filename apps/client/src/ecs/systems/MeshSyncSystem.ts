@@ -34,7 +34,7 @@ export function createMeshSyncSystem(
 		new Color3(0.2, 0.7, 0.7), // teal
 	];
 
-	return function meshSyncSystem(world: IWorld): void {
+	return function meshSyncSystem(world: IWorld, dt: number): void {
 		// Handle newly added remote entities
 		const entered = remoteEnter(world);
 		for (let i = 0; i < entered.length; i++) {
@@ -73,14 +73,17 @@ export function createMeshSyncSystem(
 			const targetY = Position.y[eid];
 			const targetZ = Position.z[eid];
 
-			// Lerp for smooth interpolation
-			const mesh = renderer.mesh;
-			mesh.position.x += (targetX - mesh.position.x) * LERP_FACTOR;
-			mesh.position.y += (targetY + 0.6 - mesh.position.y) * LERP_FACTOR;
-			mesh.position.z += (targetZ - mesh.position.z) * LERP_FACTOR;
+			// Lerp root node for smooth interpolation
+			const pos = renderer.rootNode.position;
+			pos.x += (targetX - pos.x) * LERP_FACTOR;
+			pos.y += (targetY - pos.y) * LERP_FACTOR;
+			pos.z += (targetZ - pos.z) * LERP_FACTOR;
 
 			// Rotation (snap, not lerped — simpler for now)
 			renderer.setRotationY(Rotation.y[eid]);
+
+			// Drive animation
+			renderer.update(dt);
 		}
 	};
 }

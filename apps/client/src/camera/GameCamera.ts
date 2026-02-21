@@ -1,7 +1,7 @@
 import type { ArcRotateCameraPointersInput } from "@babylonjs/core/Cameras/Inputs/arcRotateCameraPointersInput";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import type { Mesh } from "@babylonjs/core/Meshes/mesh";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Scene } from "@babylonjs/core/scene";
 
 // Camera collision ray
@@ -27,10 +27,10 @@ const FOLLOW_LERP = 0.1; // smooth follow factor
  */
 export class GameCamera {
 	readonly camera: ArcRotateCamera;
-	private targetMesh: Mesh;
+	private targetMesh: TransformNode;
 	private readonly lerpTarget = Vector3.Zero();
 
-	constructor(scene: Scene, canvas: HTMLCanvasElement, target: Mesh) {
+	constructor(scene: Scene, canvas: HTMLCanvasElement, target: TransformNode) {
 		this.targetMesh = target;
 
 		this.camera = new ArcRotateCamera(
@@ -79,8 +79,8 @@ export class GameCamera {
 	}
 
 	/** Switch which mesh the camera follows (e.g. on zone transfer). */
-	setTarget(mesh: Mesh): void {
-		this.targetMesh = mesh;
+	setTarget(node: TransformNode): void {
+		this.targetMesh = node;
 	}
 
 	dispose(): void {

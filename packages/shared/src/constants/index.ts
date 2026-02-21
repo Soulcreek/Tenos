@@ -8,11 +8,16 @@ export const MAX_INVENTORY_SLOTS = 45;
 export const MAX_SKILL_SLOTS = 10;
 export const MAX_UPGRADE_LEVEL = 15;
 
-export const BASE_STATS = {
-	warrior: { str: 12, dex: 8, int: 5, vit: 10 },
-	assassin: { str: 8, dex: 12, int: 5, vit: 7 },
-	shaman: { str: 5, dex: 7, int: 12, vit: 8 },
-	sorcerer: { str: 5, dex: 5, int: 14, vit: 8 },
+export const CHARACTER_CLASSES = ["warrior", "magician", "assassin"] as const;
+export type CharacterClass = (typeof CHARACTER_CLASSES)[number];
+
+export const BASE_STATS: Record<
+	CharacterClass,
+	{ str: number; dex: number; int: number; vit: number }
+> = {
+	warrior: { str: 14, dex: 6, int: 4, vit: 12 },
+	magician: { str: 4, dex: 6, int: 14, vit: 8 },
+	assassin: { str: 8, dex: 14, int: 4, vit: 6 },
 } as const;
 
 export const STAT_POINTS_PER_LEVEL = 3;

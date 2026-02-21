@@ -2,8 +2,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema.js";
 
-const connectionString =
-	process.env.DATABASE_URL ?? "postgres://tenos:tenos@localhost:5433/tenos";
+const connectionString = process.env.DATABASE_URL ?? "postgres://tenos:tenos@localhost:5433/tenos";
 
 const sql = postgres(connectionString, { max: 10 });
 

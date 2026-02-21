@@ -23,4 +23,9 @@ export {
 	PendingXP,
 	LootDrop,
 	Spawner,
+	ClassInfo,
+	CLASS_ID,
+	SkillCooldown,
+	Projectile,
+	Buff,
 } from "./components/combat.js";

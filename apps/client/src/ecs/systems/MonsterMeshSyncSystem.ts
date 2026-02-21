@@ -35,6 +35,7 @@ export function createMonsterMeshSyncSystem(scene: Scene, shadowGenerator: Shado
 				name: def?.name ?? `Monster ${data.netId}`,
 				color: def?.color ?? [0.5, 0.5, 0.5],
 				scale: def?.scale ?? 1.0,
+				typeId: data.typeId,
 			});
 			renderer.setPosition(data.x, data.y, data.z);
 			monsters.set(data.netId, renderer);
@@ -54,28 +55,30 @@ export function createMonsterMeshSyncSystem(scene: Scene, shadowGenerator: Shado
 			const renderer = monsters.get(data.netId);
 			if (!renderer) return;
 
-			// If dead, hide mesh after a short delay (handled by death effect)
 			if (data.isDead) {
-				renderer.mesh.visibility = 0.4;
+				renderer.setVisibility(0.4);
 			} else {
-				renderer.mesh.visibility = 1.0;
+				renderer.setVisibility(1.0);
 			}
 		},
 
 		/** Called every frame to lerp monster positions. */
-		lerpMonsters(monsterDataMap: Map<number, MonsterSyncData>): void {
+		lerpMonsters(monsterDataMap: Map<number, MonsterSyncData>, dt: number): void {
 			for (const [netId, renderer] of monsters) {
 				const data = monsterDataMap.get(netId);
 				if (!data) continue;
 
-				// Lerp position
-				const mesh = renderer.mesh;
-				mesh.position.x += (data.x - mesh.position.x) * LERP_FACTOR;
-				mesh.position.y += (data.y + 0.6 - mesh.position.y) * LERP_FACTOR;
-				mesh.position.z += (data.z - mesh.position.z) * LERP_FACTOR;
+				// Lerp root node position
+				const pos = renderer.rootNode.position;
+				pos.x += (data.x - pos.x) * LERP_FACTOR;
+				pos.y += (data.y - pos.y) * LERP_FACTOR;
+				pos.z += (data.z - pos.z) * LERP_FACTOR;
 
 				// Snap rotation
 				renderer.setRotationY(data.rotY);
+
+				// Drive animation
+				renderer.update(dt);
 			}
 		},
 

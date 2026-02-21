@@ -2,9 +2,15 @@ import { MapSchema, Schema, defineTypes } from "@colyseus/schema";
 import {
 	AutoAttack,
 	BASE_STATS,
+	Buff,
+	CHARACTER_CLASSES,
+	CLASS_ID,
+	type CharacterClass,
+	ClassInfo,
 	CombatStats,
 	Dead,
 	Health,
+	ITEM_CATALOG,
 	LOOT_DESPAWN_TIME,
 	LOOT_OWNER_TIME,
 	LootDrop,
@@ -18,6 +24,8 @@ import {
 	Position,
 	Rotation,
 	SHINSOO_SPAWNS,
+	SKILL_DEFS,
+	SkillCooldown,
 	Spawner,
 	TICK_INTERVAL_MS,
 	Target,
@@ -35,17 +43,26 @@ import { deathSystem } from "../ecs/systems/DeathSystem.js";
 import { healthRegenSystem } from "../ecs/systems/HealthRegenSystem.js";
 import { lootDropSystem } from "../ecs/systems/LootDropSystem.js";
 import { monsterAISystem } from "../ecs/systems/MonsterAISystem.js";
+import { projectileSystem } from "../ecs/systems/ProjectileSystem.js";
 import { respawnSystem } from "../ecs/systems/RespawnSystem.js";
+import { processSkillUse } from "../ecs/systems/SkillSystem.js";
 import { spawnSystem } from "../ecs/systems/SpawnSystem.js";
 import { xpSystem } from "../ecs/systems/XPSystem.js";
 import {
+	type CharacterSaveData,
+	createCharacter,
 	findOrCreatePlayer,
 	loadCharacter,
-	createCharacter,
+	loadEquipment,
+	loadInventory,
+	loadYang,
 	saveCharacter,
 	saveCharactersBatch,
-	type CharacterSaveData,
+	saveEquipment,
+	saveInventory,
+	saveYang,
 } from "../services/CharacterService.js";
+import * as InventoryService from "../services/InventoryService.js";
 
 // ── Colyseus State Schema ──────────────────────────────────────
 
@@ -63,6 +80,7 @@ class PlayerState extends Schema {
 	level = 1;
 	targetNetId = 0;
 	isDead = false;
+	characterClass = "warrior";
 }
 
 defineTypes(PlayerState, {
@@ -79,6 +97,7 @@ defineTypes(PlayerState, {
 	level: "number",
 	targetNetId: "number",
 	isDead: "boolean",
+	characterClass: "string",
 });
 
 class MonsterState extends Schema {
@@ -154,6 +173,7 @@ interface PlayerEntry {
 	netId: number;
 	characterId: number;
 	characterName: string;
+	characterClass: CharacterClass;
 }
 
 /**
@@ -207,6 +227,37 @@ export class ZoneRoom extends Room<ZoneState> {
 			this.handleAllocateStat(client, data.stat);
 		});
 
+		this.onMessage("use_skill", (client, data: { slot: number }) => {
+			this.handleUseSkill(client, data.slot);
+		});
+
+		this.onMessage("class_select", (client, data: { characterClass: string }) => {
+			this.handleClassSelect(client, data.characterClass);
+		});
+
+		this.onMessage("equip_item", (client, data: { inventorySlot: number }) => {
+			this.handleEquipItem(client, data.inventorySlot);
+		});
+
+		this.onMessage("unequip_item", (client, data: { equipSlot: string }) => {
+			this.handleUnequipItem(client, data.equipSlot);
+		});
+
+		this.onMessage("drop_item", (client, data: { inventorySlot: number; quantity: number }) => {
+			this.handleDropItem(client, data.inventorySlot, data.quantity);
+		});
+
+		this.onMessage("use_item", (client, data: { inventorySlot: number }) => {
+			this.handleUseItem(client, data.inventorySlot);
+		});
+
+		this.onMessage(
+			"upgrade_item",
+			(client, data: { inventorySlot: number; useWardingSeal: boolean }) => {
+				this.handleUpgradeItem(client, data.inventorySlot, data.useWardingSeal);
+			},
+		);
+
 		// ── Initialize Spawners ─────────────────────────────────
 		this.initializeSpawners();
 
@@ -229,6 +280,7 @@ export class ZoneRoom extends Room<ZoneState> {
 		// ── Load or create character from DB ─────────────────────
 		let characterId = 0;
 		let characterName = playerName;
+		let charClass: CharacterClass = "warrior";
 		let charLevel = 1;
 		let charXp = 0;
 		let charStatPoints = 0;
@@ -241,38 +293,163 @@ export class ZoneRoom extends Room<ZoneState> {
 		let charPosZ = 0;
 		let charHpCurrent = 0;
 		let charMpCurrent = 0;
+		let needsClassSelect = false;
 
 		try {
 			const playerId = await findOrCreatePlayer(playerName);
-			let charData = await loadCharacter(playerId);
+			const charData = await loadCharacter(playerId);
 
 			if (!charData) {
-				const base = BASE_STATS.warrior;
-				const derived = recalculateDerivedStats(base.str, base.dex, base.int, base.vit, 1);
-				charData = await createCharacter(playerId, playerName, "warrior", base, derived.hpMax, derived.mpMax);
-				console.log(`[ZoneRoom] Created new character for ${playerName} (id=${charData.id})`);
+				// Don't create character yet — wait for class selection
+				needsClassSelect = true;
+				console.log(`[ZoneRoom] New player ${playerName} needs class selection`);
 			} else {
-				console.log(`[ZoneRoom] Loaded character for ${playerName} (id=${charData.id}, level=${charData.level})`);
+				console.log(
+					`[ZoneRoom] Loaded character for ${playerName} (id=${charData.id}, level=${charData.level})`,
+				);
+				characterId = charData.id;
+				characterName = charData.name;
+				charClass = (
+					CHARACTER_CLASSES.includes(charData.characterClass as CharacterClass)
+						? charData.characterClass
+						: "warrior"
+				) as CharacterClass;
+				charLevel = charData.level;
+				charXp = charData.xp;
+				charStatPoints = charData.statPoints;
+				charStr = charData.str;
+				charDex = charData.dex;
+				charInt = charData.intStat;
+				charVit = charData.vit;
+				charPosX = charData.posX;
+				charPosY = charData.posY;
+				charPosZ = charData.posZ;
+				charHpCurrent = charData.hpCurrent;
+				charMpCurrent = charData.mpCurrent;
 			}
-
-			characterId = charData.id;
-			characterName = charData.name;
-			charLevel = charData.level;
-			charXp = charData.xp;
-			charStatPoints = charData.statPoints;
-			charStr = charData.str;
-			charDex = charData.dex;
-			charInt = charData.intStat;
-			charVit = charData.vit;
-			charPosX = charData.posX;
-			charPosY = charData.posY;
-			charPosZ = charData.posZ;
-			charHpCurrent = charData.hpCurrent;
-			charMpCurrent = charData.mpCurrent;
 		} catch (err) {
-			console.error(`[ZoneRoom] DB error loading character for ${playerName}, using transient:`, err);
-			// characterId stays 0 → saves will be skipped
+			console.error(
+				`[ZoneRoom] DB error loading character for ${playerName}, using transient:`,
+				err,
+			);
 		}
+
+		if (needsClassSelect) {
+			// Store pending player info and send class select prompt
+			this.pendingClassSelects.set(client.sessionId, { playerName });
+			client.send("class_select_prompt", {});
+			return;
+		}
+
+		await this.finalizeJoin(client, {
+			characterId,
+			characterName,
+			charClass,
+			charLevel,
+			charXp,
+			charStatPoints,
+			charStr,
+			charDex,
+			charInt,
+			charVit,
+			charPosX,
+			charPosY,
+			charPosZ,
+			charHpCurrent,
+			charMpCurrent,
+		});
+	}
+
+	private pendingClassSelects = new Map<string, { playerName: string }>();
+
+	private async handleClassSelect(client: Client, className: string) {
+		const pending = this.pendingClassSelects.get(client.sessionId);
+		if (!pending) return;
+
+		const charClass = CHARACTER_CLASSES.includes(className as CharacterClass)
+			? (className as CharacterClass)
+			: "warrior";
+
+		this.pendingClassSelects.delete(client.sessionId);
+
+		const base = BASE_STATS[charClass];
+		const derived = recalculateDerivedStats(base.str, base.dex, base.int, base.vit, 1, charClass);
+
+		let characterId = 0;
+		try {
+			const playerId = await findOrCreatePlayer(pending.playerName);
+			const charData = await createCharacter(
+				playerId,
+				pending.playerName,
+				charClass,
+				base,
+				derived.hpMax,
+				derived.mpMax,
+			);
+			characterId = charData.id;
+			console.log(
+				`[ZoneRoom] Created ${charClass} character for ${pending.playerName} (id=${characterId})`,
+			);
+		} catch (err) {
+			console.error("[ZoneRoom] Failed to create character:", err);
+		}
+
+		await this.finalizeJoin(client, {
+			characterId,
+			characterName: pending.playerName,
+			charClass,
+			charLevel: 1,
+			charXp: 0,
+			charStatPoints: 0,
+			charStr: base.str,
+			charDex: base.dex,
+			charInt: base.int,
+			charVit: base.vit,
+			charPosX: 0,
+			charPosY: 0,
+			charPosZ: 0,
+			charHpCurrent: derived.hpMax,
+			charMpCurrent: derived.mpMax,
+		});
+	}
+
+	private async finalizeJoin(
+		client: Client,
+		opts: {
+			characterId: number;
+			characterName: string;
+			charClass: CharacterClass;
+			charLevel: number;
+			charXp: number;
+			charStatPoints: number;
+			charStr: number;
+			charDex: number;
+			charInt: number;
+			charVit: number;
+			charPosX: number;
+			charPosY: number;
+			charPosZ: number;
+			charHpCurrent: number;
+			charMpCurrent: number;
+		},
+	) {
+		const {
+			characterId,
+			characterName,
+			charClass,
+			charLevel,
+			charXp,
+			charStatPoints,
+			charStr,
+			charDex,
+			charInt,
+			charVit,
+			charPosX,
+			charPosY,
+			charPosZ,
+			charHpCurrent,
+			charMpCurrent,
+		} = opts;
 
 		// ── Create ECS entity ────────────────────────────────────
 		const eid = addEntity(this.world);
@@ -285,11 +462,21 @@ export class ZoneRoom extends Room<ZoneState> {
 		addComponent(this.world, CombatStats, eid);
 		addComponent(this.world, Target, eid);
 		addComponent(this.world, AutoAttack, eid);
+		addComponent(this.world, ClassInfo, eid);
+		addComponent(this.world, SkillCooldown, eid);
 
 		// Assign network ID
 		const netId = this.nextNetId++;
 		NetworkIdentity.netId[eid] = netId;
 		NetworkIdentity.ownerId[eid] = hashSessionId(client.sessionId);
+
+		// Set class
+		const classIdMap: Record<CharacterClass, number> = {
+			warrior: CLASS_ID.WARRIOR,
+			magician: CLASS_ID.MAGICIAN,
+			assassin: CLASS_ID.ASSASSIN,
+		};
+		ClassInfo.classId[eid] = classIdMap[charClass] ?? CLASS_ID.WARRIOR;
 
 		// Initialize stats from DB data
 		CombatStats.level[eid] = charLevel;
@@ -300,8 +487,15 @@ export class ZoneRoom extends Room<ZoneState> {
 		CombatStats.int[eid] = charInt;
 		CombatStats.vit[eid] = charVit;
 
-		// Recompute derived stats from base stats (never store derived)
-		const derived = recalculateDerivedStats(charStr, charDex, charInt, charVit, charLevel);
+		// Recompute derived stats from base stats with class passives
+		const derived = recalculateDerivedStats(
+			charStr,
+			charDex,
+			charInt,
+			charVit,
+			charLevel,
+			charClass,
+		);
 		Health.max[eid] = derived.hpMax;
 		Health.regenRate[eid] = derived.hpRegen;
 		Mana.max[eid] = derived.mpMax;
@@ -318,10 +512,14 @@ export class ZoneRoom extends Room<ZoneState> {
 		Mana.current[eid] =
 			charMpCurrent > 0 && charMpCurrent <= derived.mpMax ? charMpCurrent : derived.mpMax;
 
-		// Auto-attack setup
+		// Auto-attack setup (range set based on class in system)
 		AutoAttack.range[eid] = MELEE_RANGE;
 		AutoAttack.active[eid] = 0;
 		AutoAttack.cooldown[eid] = 0;
+
+		// Skill cooldowns start at 0
+		SkillCooldown.slot1Cd[eid] = 0;
+		SkillCooldown.slot2Cd[eid] = 0;
 
 		// Restore position from DB
 		Position.x[eid] = charPosX;
@@ -335,6 +533,7 @@ export class ZoneRoom extends Room<ZoneState> {
 			netId,
 			characterId,
 			characterName,
+			characterClass: charClass,
 		});
 		this.netIdToEid.set(netId, eid);
 		this.eidToNetId.set(eid, netId);
@@ -343,6 +542,7 @@ export class ZoneRoom extends Room<ZoneState> {
 		const playerState = new PlayerState();
 		playerState.netId = netId;
 		playerState.name = characterName;
+		playerState.characterClass = charClass;
 		playerState.x = charPosX;
 		playerState.y = charPosY;
 		playerState.z = charPosZ;
@@ -354,23 +554,66 @@ export class ZoneRoom extends Room<ZoneState> {
 		this.state.players.set(client.sessionId, playerState);
 		this.state.playerCount = this.players.size;
 
-		console.log(`[ZoneRoom] Player joined: ${client.sessionId} (eid=${eid}, netId=${netId}, charId=${characterId})`);
+		// ── Load & sync inventory ────────────────────────────────
+		try {
+			const invSlots = characterId ? await loadInventory(characterId) : undefined;
+			const equipSlots = characterId ? await loadEquipment(characterId) : undefined;
+			const yang = characterId ? await loadYang(characterId) : 0;
+			InventoryService.initInventory(
+				client.sessionId,
+				invSlots ?? undefined,
+				equipSlots ?? undefined,
+				yang,
+			);
+		} catch (err) {
+			console.error("[ZoneRoom] Failed to load inventory:", err);
+			InventoryService.initInventory(client.sessionId);
+		}
+
+		// Apply equipment stat bonuses
+		const equipBonus = InventoryService.getEquipmentBonuses(client.sessionId);
+		CombatStats.attackPower[eid] += equipBonus.attack ?? 0;
+		CombatStats.defense[eid] += equipBonus.defense ?? 0;
+
+		// Send inventory sync to client
+		const inv = InventoryService.getInventory(client.sessionId);
+		if (inv) {
+			client.send("inventory_sync", {
+				inventory: inv.slots,
+				equipment: inv.equipment,
+				yang: inv.yang,
+			});
+		}
+
+		console.log(
+			`[ZoneRoom] Player joined: ${client.sessionId} (eid=${eid}, netId=${netId}, class=${charClass}, charId=${characterId})`,
+		);
 	}
 
 	async onLeave(client: Client) {
+		this.pendingClassSelects.delete(client.sessionId);
 		const entry = this.players.get(client.sessionId);
 		if (entry) {
-			// Save character to DB before cleanup (skip transient characters)
+			// Save character + inventory to DB before cleanup
 			if (entry.characterId !== 0) {
 				try {
 					const data = this.extractSaveData(entry.eid);
 					await saveCharacter(entry.characterId, data);
-					console.log(`[ZoneRoom] Saved character ${entry.characterName} (id=${entry.characterId})`);
+					const inv = InventoryService.getInventory(client.sessionId);
+					if (inv) {
+						await saveInventory(entry.characterId, inv.slots);
+						await saveEquipment(entry.characterId, inv.equipment);
+						await saveYang(entry.characterId, inv.yang);
+					}
+					console.log(
+						`[ZoneRoom] Saved character ${entry.characterName} (id=${entry.characterId})`,
+					);
 				} catch (err) {
 					console.error(`[ZoneRoom] Failed to save character ${entry.characterName}:`, err);
 				}
 			}
 
+			InventoryService.removeInventory(client.sessionId);
 			this.netIdToEid.delete(entry.netId);
 			this.eidToNetId.delete(entry.eid);
 			this.lastHitMap.delete(entry.eid);
@@ -516,13 +759,29 @@ export class ZoneRoom extends Room<ZoneState> {
 		const key = this.lootNetIdToKey.get(netId);
 		const lootState = key ? this.state.loot.get(key) : undefined;
 		const itemName = lootState?.name ?? "Item";
+		const lootItemId = LootDrop.itemId[lootEid];
+		const lootQty = LootDrop.quantity[lootEid];
+
+		// Add to inventory
+		const added = InventoryService.addItem(client.sessionId, lootItemId, lootQty);
+		if (!added) {
+			// Inventory full
+			client.send("combat_log", { text: "Inventory is full!" });
+			return;
+		}
 
 		// Send pickup notification to player
-		client.send("loot_pickup", {
-			itemId: LootDrop.itemId[lootEid],
-			name: itemName,
-			qty: LootDrop.quantity[lootEid],
-		});
+		client.send("loot_pickup", { itemId: lootItemId, name: itemName, qty: lootQty });
+
+		// Send inventory update
+		const inv = InventoryService.getInventory(client.sessionId);
+		if (inv) {
+			client.send("inventory_sync", {
+				inventory: inv.slots,
+				equipment: inv.equipment,
+				yang: inv.yang,
+			});
+		}
 
 		// Remove loot from world and schema
 		if (key) {
@@ -547,26 +806,17 @@ export class ZoneRoom extends Room<ZoneState> {
 		CombatStats.statPoints[eid] -= 1;
 		CombatStats[stat as "str" | "dex" | "int" | "vit"][eid] += 1;
 
-		// Recalculate derived stats
+		this.recalcPlayerStats(client.sessionId, eid);
+
 		const derived = recalculateDerivedStats(
 			CombatStats.str[eid],
 			CombatStats.dex[eid],
 			CombatStats.int[eid],
 			CombatStats.vit[eid],
 			CombatStats.level[eid],
+			entry.characterClass,
 		);
 
-		Health.max[eid] = derived.hpMax;
-		Health.regenRate[eid] = derived.hpRegen;
-		Mana.max[eid] = derived.mpMax;
-		Mana.regenRate[eid] = derived.mpRegen;
-		CombatStats.attackPower[eid] = derived.attackPower;
-		CombatStats.defense[eid] = derived.defense;
-		CombatStats.attackSpeed[eid] = derived.attackSpeed;
-		CombatStats.critChance[eid] = derived.critChance;
-		CombatStats.moveSpeed[eid] = derived.moveSpeed;
-
-		// Send updated stats to player
 		client.send("stat_update", {
 			str: CombatStats.str[eid],
 			dex: CombatStats.dex[eid],
@@ -581,6 +831,33 @@ export class ZoneRoom extends Room<ZoneState> {
 			critChance: derived.critChance,
 			moveSpeed: derived.moveSpeed,
 		});
+	}
+
+	/** Recalculate all derived stats + equipment bonuses for a player. */
+	private recalcPlayerStats(sessionId: string, eid: number) {
+		const entry = this.players.get(sessionId);
+		if (!entry) return;
+
+		const derived = recalculateDerivedStats(
+			CombatStats.str[eid],
+			CombatStats.dex[eid],
+			CombatStats.int[eid],
+			CombatStats.vit[eid],
+			CombatStats.level[eid],
+			entry.characterClass,
+		);
+
+		const equipBonus = InventoryService.getEquipmentBonuses(sessionId);
+
+		Health.max[eid] = derived.hpMax;
+		Health.regenRate[eid] = derived.hpRegen;
+		Mana.max[eid] = derived.mpMax;
+		Mana.regenRate[eid] = derived.mpRegen;
+		CombatStats.attackPower[eid] = derived.attackPower + (equipBonus.attack ?? 0);
+		CombatStats.defense[eid] = derived.defense + (equipBonus.defense ?? 0);
+		CombatStats.attackSpeed[eid] = derived.attackSpeed;
+		CombatStats.critChance[eid] = Math.min(0.5, derived.critChance + (equipBonus.critChance ?? 0));
+		CombatStats.moveSpeed[eid] = derived.moveSpeed + (equipBonus.moveSpeed ?? 0);
 	}
 
 	// ── Spawner Initialization ─────────────────────────────────
@@ -613,31 +890,46 @@ export class ZoneRoom extends Room<ZoneState> {
 		// 2. Movement (apply velocity to position)
 		this.applyMovement(dt);
 
-		// 3. Auto-Attack
-		const damageEvents = autoAttackSystem(this.world, dt);
-		this.broadcastDamageEvents(damageEvents);
+		// 3. Auto-Attack (class-aware with projectiles)
+		const { events: meleeEvents, projectiles: autoProjectiles } = autoAttackSystem(
+			this.world,
+			dt,
+			() => this.nextNetId++,
+		);
+		this.broadcastDamageEvents(meleeEvents);
+		this.broadcastProjectileSpawns(autoProjectiles);
 
-		// 4. Health Regen
+		// 4. Projectile System
+		const { damages: projDamages } = projectileSystem(this.world, dt);
+		this.broadcastDamageEvents(projDamages);
+
+		// 5. Skill Cooldown tick
+		this.tickSkillCooldowns(dt);
+
+		// 6. Buff expiry
+		this.tickBuffs(dt);
+
+		// 7. Health Regen
 		healthRegenSystem(this.world, dt);
 
-		// 5. Death
+		// 8. Death
 		const deathEvents = deathSystem(this.world, this.lastHitMap);
 		this.handleDeathEvents(deathEvents);
 
-		// 6. XP
+		// 9. XP
 		const { xpEvents, levelEvents } = xpSystem(this.world);
 		this.broadcastXPEvents(xpEvents);
 		this.broadcastLevelEvents(levelEvents);
 
-		// 7. Loot Despawn
+		// 10. Loot Despawn
 		const despawnedLoot = lootDropSystem(this.world, dt);
 		this.handleLootDespawn(despawnedLoot);
 
-		// 8. Respawn
+		// 11. Respawn
 		const respawnEvents = respawnSystem(this.world, dt, this.respawnTimers, this.monsterSpawnerMap);
 		this.handleRespawnEvents(respawnEvents);
 
-		// 9. Spawn (new monsters from spawners)
+		// 12. Spawn (new monsters from spawners)
 		const newMonsters = spawnSystem(
 			this.world,
 			dt,
@@ -646,7 +938,7 @@ export class ZoneRoom extends Room<ZoneState> {
 		);
 		this.registerNewMonsters(newMonsters);
 
-		// 10. Sync ECS → Colyseus state
+		// 13. Sync ECS → Colyseus state
 		this.syncState();
 	}
 
@@ -942,6 +1234,248 @@ export class ZoneRoom extends Room<ZoneState> {
 			ms.isDead = false;
 			this.state.monsters.set(key, ms);
 			this.monsterNetIdToKey.set(netId, key);
+		}
+	}
+
+	// ── Skill & Buff Handlers ──────────────────────────────────
+
+	private handleUseSkill(client: Client, slot: number) {
+		const entry = this.players.get(client.sessionId);
+		if (!entry) return;
+		if (hasComponent(this.world, Dead, entry.eid)) return;
+
+		const { events, projectiles } = processSkillUse(
+			this.world,
+			entry.eid,
+			slot,
+			() => this.nextNetId++,
+		);
+
+		for (const event of events) {
+			const casterNetId = this.eidToNetId.get(event.casterEid) ?? 0;
+			const targetNetId = this.eidToNetId.get(event.targetEid) ?? 0;
+
+			if (event.type === "damage") {
+				this.lastHitMap.set(event.targetEid, event.casterEid);
+				this.broadcast("damage", {
+					targetNetId,
+					attackerNetId: casterNetId,
+					amount: event.amount,
+					isCrit: event.isCrit,
+					remainingHp: event.remainingHp,
+				});
+				this.broadcast("skill_effect", {
+					casterNetId,
+					skillId: event.skillId,
+					targetNetId,
+				});
+			} else if (event.type === "heal") {
+				this.broadcast("heal_effect", { targetNetId, amount: event.amount });
+				this.broadcast("skill_effect", {
+					casterNetId,
+					skillId: event.skillId,
+					targetNetId,
+				});
+			} else if (event.type === "buff") {
+				this.broadcast("buff_apply", {
+					targetNetId: casterNetId,
+					buffId: event.skillId,
+					duration: SKILL_DEFS[event.skillId]?.buffDuration ?? 8,
+				});
+				this.broadcast("skill_effect", {
+					casterNetId,
+					skillId: event.skillId,
+					targetNetId: casterNetId,
+				});
+			}
+		}
+
+		this.broadcastProjectileSpawns(
+			projectiles.map((p) => ({
+				eid: p.eid,
+				ownerEid: p.ownerEid,
+				targetEid: p.targetEid,
+				speed: p.speed,
+				type: p.type,
+			})),
+		);
+	}
+
+	private broadcastProjectileSpawns(
+		projectiles: Array<{
+			eid: number;
+			ownerEid: number;
+			targetEid: number;
+			speed: number;
+			type: "bolt" | "arrow";
+		}>,
+	) {
+		for (const proj of projectiles) {
+			const toNetId = this.eidToNetId.get(proj.targetEid) ?? 0;
+			this.broadcast("projectile_spawn", {
+				id: NetworkIdentity.netId[proj.eid],
+				fromX: Position.x[proj.eid],
+				fromZ: Position.z[proj.eid],
+				toNetId,
+				speed: proj.speed,
+				type: proj.type,
+			});
+		}
+	}
+
+	private tickSkillCooldowns(dt: number) {
+		for (const [, entry] of this.players) {
+			if (SkillCooldown.slot1Cd[entry.eid] > 0)
+				SkillCooldown.slot1Cd[entry.eid] = Math.max(0, SkillCooldown.slot1Cd[entry.eid] - dt);
+			if (SkillCooldown.slot2Cd[entry.eid] > 0)
+				SkillCooldown.slot2Cd[entry.eid] = Math.max(0, SkillCooldown.slot2Cd[entry.eid] - dt);
+		}
+	}
+
+	private tickBuffs(dt: number) {
+		for (const [, entry] of this.players) {
+			const eid = entry.eid;
+			if (!hasComponent(this.world, Buff, eid)) continue;
+			Buff.duration[eid] -= dt;
+			if (Buff.duration[eid] <= 0) {
+				// Remove buff and recalculate stats
+				Buff.duration[eid] = 0;
+				Buff.magnitude[eid] = 0;
+				this.recalcPlayerStats(entry.sessionId, eid);
+			}
+		}
+	}
+
+	// ── Inventory Handlers ──────────────────────────────────
+
+	private handleEquipItem(client: Client, invSlotIdx: number) {
+		const entry = this.players.get(client.sessionId);
+		if (!entry) return;
+
+		const result = InventoryService.equipItem(
+			client.sessionId,
+			invSlotIdx,
+			entry.characterClass,
+			CombatStats.level[entry.eid],
+		);
+		if (!result.success) return;
+
+		this.recalcPlayerStats(client.sessionId, entry.eid);
+		this.syncInventoryToClient(client);
+	}
+
+	private handleUnequipItem(client: Client, equipSlot: string) {
+		const entry = this.players.get(client.sessionId);
+		if (!entry) return;
+
+		if (!InventoryService.unequipItem(client.sessionId, equipSlot)) return;
+
+		this.recalcPlayerStats(client.sessionId, entry.eid);
+		this.syncInventoryToClient(client);
+	}
+
+	private handleDropItem(client: Client, invSlotIdx: number, quantity: number) {
+		const entry = this.players.get(client.sessionId);
+		if (!entry) return;
+
+		const dropped = InventoryService.dropItem(client.sessionId, invSlotIdx, quantity);
+		if (!dropped) return;
+
+		// Spawn loot entity at player position
+		const lootEid = addEntity(this.world);
+		addComponent(this.world, Position, lootEid);
+		addComponent(this.world, NetworkIdentity, lootEid);
+		addComponent(this.world, LootDrop, lootEid);
+
+		const netId = this.nextNetId++;
+		NetworkIdentity.netId[lootEid] = netId;
+		Position.x[lootEid] = Position.x[entry.eid] + (Math.random() - 0.5) * 2;
+		Position.y[lootEid] = 0;
+		Position.z[lootEid] = Position.z[entry.eid] + (Math.random() - 0.5) * 2;
+
+		LootDrop.itemId[lootEid] = dropped.itemId;
+		LootDrop.quantity[lootEid] = dropped.qty;
+		LootDrop.despawnTimer[lootEid] = LOOT_DESPAWN_TIME;
+		LootDrop.ownerHash[lootEid] = 0; // free for all
+
+		this.netIdToEid.set(netId, lootEid);
+		this.eidToNetId.set(lootEid, netId);
+
+		const itemDef = ITEM_CATALOG[dropped.itemId];
+		const itemName = itemDef
+			? dropped.upgradeLevel > 0
+				? `+${dropped.upgradeLevel} ${itemDef.name}`
+				: itemDef.name
+			: "Item";
+
+		const key = `loot_${netId}`;
+		const lootState = new LootState();
+		lootState.netId = netId;
+		lootState.itemId = dropped.itemId;
+		lootState.name = itemName;
+		lootState.qty = dropped.qty;
+		lootState.x = Position.x[lootEid];
+		lootState.z = Position.z[lootEid];
+		this.state.loot.set(key, lootState);
+		this.lootNetIdToKey.set(netId, key);
+
+		this.broadcast("loot_spawn", {
+			netId,
+			itemId: dropped.itemId,
+			name: itemName,
+			qty: dropped.qty,
+			x: Position.x[lootEid],
+			z: Position.z[lootEid],
+		});
+
+		this.syncInventoryToClient(client);
+	}
+
+	private handleUseItem(client: Client, invSlotIdx: number) {
+		const entry = this.players.get(client.sessionId);
+		if (!entry) return;
+		if (hasComponent(this.world, Dead, entry.eid)) return;
+
+		const result = InventoryService.useItem(client.sessionId, invSlotIdx);
+		if (!result) return;
+
+		const eid = entry.eid;
+		if (result.healAmount > 0) {
+			Health.current[eid] = Math.min(Health.max[eid], Health.current[eid] + result.healAmount);
+			this.broadcast("heal_effect", {
+				targetNetId: entry.netId,
+				amount: result.healAmount,
+			});
+		}
+		if (result.manaAmount > 0) {
+			Mana.current[eid] = Math.min(Mana.max[eid], Mana.current[eid] + result.manaAmount);
+		}
+
+		this.syncInventoryToClient(client);
+	}
+
+	private handleUpgradeItem(client: Client, invSlotIdx: number, useWardingSeal: boolean) {
+		const entry = this.players.get(client.sessionId);
+		if (!entry) return;
+
+		const result = InventoryService.upgradeItem(client.sessionId, invSlotIdx, useWardingSeal);
+		if (!result) return;
+
+		client.send("upgrade_result", result);
+		this.syncInventoryToClient(client);
+
+		// Recalc stats in case equipped item was upgraded
+		this.recalcPlayerStats(client.sessionId, entry.eid);
+	}
+
+	private syncInventoryToClient(client: Client) {
+		const inv = InventoryService.getInventory(client.sessionId);
+		if (inv) {
+			client.send("inventory_sync", {
+				inventory: inv.slots,
+				equipment: inv.equipment,
+				yang: inv.yang,
+			});
 		}
 	}
 

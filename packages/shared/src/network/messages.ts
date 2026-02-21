@@ -17,6 +17,24 @@ export enum MessageType {
 	AllocateStat = "allocate_stat",
 	PlayerRespawn = "player_respawn",
 	CombatLog = "combat_log",
+
+	// ── Class & Skill Messages (M3) ──────────────────────────
+	ClassSelect = "class_select",
+	UseSkill = "use_skill",
+	SkillEffect = "skill_effect",
+	ProjectileSpawn = "projectile_spawn",
+	BuffApply = "buff_apply",
+	HealEffect = "heal_effect",
+
+	// ── Inventory Messages (M3) ──────────────────────────────
+	InventorySync = "inventory_sync",
+	InventoryUpdate = "inventory_update",
+	EquipItem = "equip_item",
+	UnequipItem = "unequip_item",
+	DropItem = "drop_item",
+	UseItem = "use_item",
+	UpgradeItem = "upgrade_item",
+	UpgradeResult = "upgrade_result",
 }
 
 export interface PlayerInput {
@@ -138,4 +156,100 @@ export interface PlayerRespawnMsg {
 /** Server → Client: combat log text. */
 export interface CombatLogMsg {
 	text: string;
+}
+
+// ── Class & Skill Message Payloads ─────────────────────────────
+
+/** Client → Server: select class on first join. */
+export interface ClassSelectMsg {
+	characterClass: string;
+}
+
+/** Client → Server: use active skill. */
+export interface UseSkillMsg {
+	slot: number;
+}
+
+/** Server → Client: skill was used (for VFX). */
+export interface SkillEffectMsg {
+	casterNetId: number;
+	skillId: string;
+	targetNetId: number;
+}
+
+/** Server → Client: projectile spawned. */
+export interface ProjectileSpawnMsg {
+	id: number;
+	fromX: number;
+	fromZ: number;
+	toNetId: number;
+	speed: number;
+	type: "bolt" | "arrow";
+}
+
+/** Server → Client: buff applied. */
+export interface BuffApplyMsg {
+	targetNetId: number;
+	buffId: string;
+	duration: number;
+}
+
+/** Server → Client: heal applied. */
+export interface HealEffectMsg {
+	targetNetId: number;
+	amount: number;
+}
+
+// ── Inventory Message Payloads ─────────────────────────────────
+
+import type { EquipmentSlots, InventorySlot } from "../data/inventory.js";
+
+/** Server → Client: full inventory sync. */
+export interface InventorySyncMsg {
+	inventory: (InventorySlot | null)[];
+	equipment: EquipmentSlots;
+	yang: number;
+}
+
+/** Server → Client: single slot update. */
+export interface InventoryUpdateMsg {
+	slot: number;
+	itemId: number;
+	qty: number;
+	upgradeLevel: number;
+}
+
+/** Client → Server: equip item from inventory. */
+export interface EquipItemMsg {
+	inventorySlot: number;
+}
+
+/** Client → Server: unequip item to inventory. */
+export interface UnequipItemMsg {
+	equipSlot: string;
+}
+
+/** Client → Server: drop item from inventory. */
+export interface DropItemMsg {
+	inventorySlot: number;
+	quantity: number;
+}
+
+/** Client → Server: use consumable item. */
+export interface UseItemMsg {
+	inventorySlot: number;
+}
+
+/** Client → Server: upgrade an equipment item. */
+export interface UpgradeItemMsg {
+	inventorySlot: number;
+	useWardingSeal: boolean;
+}
+
+/** Server → Client: upgrade result. */
+export interface UpgradeResultMsg {
+	success: boolean;
+	newLevel: number;
+	destroyed: boolean;
+	itemName: string;
 }

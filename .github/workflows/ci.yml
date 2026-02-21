@@ -34,12 +34,30 @@ jobs:
   test:
     name: Unit Tests
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tenos
+          POSTGRES_PASSWORD: tenos
+          POSTGRES_DB: tenos
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U tenos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://tenos:tenos@localhost:5433/tenos
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3"
       - run: bun install
+      - name: Run migrations
+        run: cd apps/server && bunx drizzle-kit migrate
       - name: Run tests
         run: bun run test
 
@@ -74,7 +92,7 @@ jobs:
       - name: Copy WASM
         run: bun run copy:wasm
       - name: Install Playwright
-        run: bunx playwright install --with-deps chromium
+        run: bunx playwright install chromium
       - name: E2E tests
         run: bun run test:e2e
       - name: Upload Playwright report

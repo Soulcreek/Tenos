@@ -29,14 +29,18 @@ export class TargetRing {
 	/** Attach ring under a target mesh. */
 	show(targetMesh: AbstractMesh): void {
 		this.ring.setEnabled(true);
-		this.ring.position.copyFrom(targetMesh.position);
+		const absPos = targetMesh.getAbsolutePosition();
+		this.ring.position.x = absPos.x;
+		this.ring.position.z = absPos.z;
 		this.ring.position.y = 0.05; // just above ground
 	}
 
 	/** Update ring position to follow a moving target. */
 	update(targetMesh: AbstractMesh): void {
 		if (!this.ring.isEnabled()) return;
-		this.ring.position.copyFrom(targetMesh.position);
+		const absPos = targetMesh.getAbsolutePosition();
+		this.ring.position.x = absPos.x;
+		this.ring.position.z = absPos.z;
 		this.ring.position.y = 0.05;
 	}
 

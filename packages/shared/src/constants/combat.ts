@@ -2,6 +2,8 @@
 // Combat Constants & Formulas
 // ============================================================
 
+import type { CharacterClass } from "./index.js";
+
 /** Melee auto-attack range in world units. */
 export const MELEE_RANGE = 2.5;
 
@@ -71,6 +73,18 @@ export const MONSTER_CHASE_SPEED = 0.8;
 /** Monster attack range. */
 export const MONSTER_ATTACK_RANGE = 2.0;
 
+/** Ranged auto-attack range for magician/assassin. */
+export const RANGED_ATTACK_RANGE = 15;
+
+/** Assassin bow range. */
+export const ASSASSIN_BOW_RANGE = 12;
+
+/** Distance threshold for assassin to switch from bow to dagger. */
+export const ASSASSIN_MELEE_THRESHOLD = 5;
+
+/** Spell power per INT point. */
+export const SPELL_POWER_PER_INT = 2.5;
+
 // ── Derived Stat Calculations ──────────────────────────────────
 
 export interface DerivedStats {
@@ -79,29 +93,41 @@ export interface DerivedStats {
 	hpRegen: number;
 	mpRegen: number;
 	attackPower: number;
+	spellPower: number;
 	defense: number;
 	attackSpeed: number;
 	critChance: number;
+	critMultiplier: number;
 	moveSpeed: number;
 }
 
-/** Recalculate all derived stats from base stats. */
+/** Recalculate all derived stats from base stats with class passive bonuses. */
 export function recalculateDerivedStats(
 	str: number,
 	dex: number,
 	int: number,
 	vit: number,
 	level: number,
+	characterClass: CharacterClass = "warrior",
 ): DerivedStats {
+	// Warrior passive: Fortitude — +20% VIT scaling on HP
+	const vitHpMultiplier = characterClass === "warrior" ? 1.2 : 1.0;
+	// Magician passive: Attunement — +30% INT scaling on MP regen
+	const intMpRegenMultiplier = characterClass === "magician" ? 1.3 : 1.0;
+	// Assassin passive: Precision — +50% crit damage (3.0x instead of 2.0x)
+	const critMult = characterClass === "assassin" ? 3.0 : CRIT_MULTIPLIER;
+
 	return {
-		hpMax: BASE_HP + vit * HP_PER_VIT + level * 5,
+		hpMax: BASE_HP + Math.floor(vit * HP_PER_VIT * vitHpMultiplier) + level * 5,
 		mpMax: BASE_MP + int * MP_PER_INT + level * 3,
 		hpRegen: vit * HP_REGEN_PER_VIT,
-		mpRegen: int * MP_REGEN_PER_INT,
+		mpRegen: int * MP_REGEN_PER_INT * intMpRegenMultiplier,
 		attackPower: str * ATTACK_PER_STR + level * 1.5,
+		spellPower: int * SPELL_POWER_PER_INT,
 		defense: vit * DEFENSE_PER_VIT + level * 0.5,
 		attackSpeed: BASE_ATTACK_SPEED + dex * ATTACK_SPEED_PER_DEX,
 		critChance: Math.min(0.5, BASE_CRIT_CHANCE + dex * CRIT_PER_DEX),
+		critMultiplier: critMult,
 		moveSpeed: BASE_MOVE_SPEED + dex * MOVE_SPEED_PER_DEX,
 	};
 }
@@ -121,6 +147,25 @@ export function calculatePhysicalDamage(
 	const variance = 0.85 + Math.random() * 0.3; // 85%-115%
 	let damage = Math.floor(baseDamage * variance);
 	if (isCrit) damage = Math.floor(damage * CRIT_MULTIPLIER);
+	return Math.max(MIN_DAMAGE, damage);
+}
+
+/**
+ * Calculate magic damage.
+ * Formula: spellPower * (1 - magicResist / (magicResist + 100)) * random variance
+ * Monsters use defense as magic resist for simplicity.
+ */
+export function calculateMagicDamage(
+	spellPower: number,
+	magicResist: number,
+	isCrit: boolean,
+	critMultiplier: number = CRIT_MULTIPLIER,
+): number {
+	const reduction = magicResist / (magicResist + 100);
+	const baseDamage = spellPower * (1 - reduction);
+	const variance = 0.85 + Math.random() * 0.3;
+	let damage = Math.floor(baseDamage * variance);
+	if (isCrit) damage = Math.floor(damage * critMultiplier);
 	return Math.max(MIN_DAMAGE, damage);
 }
 

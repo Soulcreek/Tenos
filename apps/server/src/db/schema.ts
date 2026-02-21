@@ -1,4 +1,14 @@
-import { index, integer, pgTable, real, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+	index,
+	integer,
+	pgTable,
+	real,
+	serial,
+	text,
+	timestamp,
+	unique,
+	uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 export const players = pgTable("players", {
 	id: serial("id").primaryKey(),
@@ -37,11 +47,49 @@ export const characters = pgTable(
 		hpCurrent: real("hp_current").notNull().default(0),
 		mpCurrent: real("mp_current").notNull().default(0),
 
+		// Economy
+		yang: integer("yang").notNull().default(0),
+
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},
 	(table) => [
 		index("characters_player_id_idx").on(table.playerId),
 		uniqueIndex("characters_name_idx").on(table.name),
+	],
+);
+
+export const inventoryItems = pgTable(
+	"inventory_items",
+	{
+		id: serial("id").primaryKey(),
+		characterId: integer("character_id")
+			.notNull()
+			.references(() => characters.id),
+		slot: integer("slot").notNull(),
+		itemId: integer("item_id").notNull(),
+		quantity: integer("quantity").notNull().default(1),
+		upgradeLevel: integer("upgrade_level").notNull().default(0),
+	},
+	(table) => [
+		index("inventory_character_id_idx").on(table.characterId),
+		unique("inventory_char_slot_idx").on(table.characterId, table.slot),
+	],
+);
+
+export const equippedItems = pgTable(
+	"equipped_items",
+	{
+		id: serial("id").primaryKey(),
+		characterId: integer("character_id")
+			.notNull()
+			.references(() => characters.id),
+		slot: text("slot").notNull(),
+		itemId: integer("item_id").notNull(),
+		upgradeLevel: integer("upgrade_level").notNull().default(0),
+	},
+	(table) => [
+		index("equipped_character_id_idx").on(table.characterId),
+		unique("equipped_char_slot_idx").on(table.characterId, table.slot),
 	],
 );

@@ -1,13 +1,22 @@
 import {
+	ASSASSIN_BOW_RANGE,
+	ASSASSIN_MELEE_THRESHOLD,
 	AutoAttack,
+	CLASS_ID,
+	ClassInfo,
 	CombatStats,
 	Dead,
 	Health,
+	MELEE_RANGE,
+	NetworkIdentity,
 	Position,
+	Projectile,
+	RANGED_ATTACK_RANGE,
 	Target,
+	calculateMagicDamage,
 	calculatePhysicalDamage,
 } from "@tenos/shared";
-import { Not, defineQuery, hasComponent } from "bitecs";
+import { Not, addComponent, addEntity, defineQuery, hasComponent } from "bitecs";
 import type { IWorld } from "bitecs";
 
 const attackerQuery = defineQuery([AutoAttack, Target, CombatStats, Position, Health, Not(Dead)]);
@@ -21,13 +30,25 @@ export interface DamageEvent {
 	remainingHp: number;
 }
 
+export interface AutoAttackProjectile {
+	eid: number;
+	ownerEid: number;
+	targetEid: number;
+	speed: number;
+	type: "bolt" | "arrow";
+}
+
 /**
  * Processes auto-attacks for entities with an active target.
- * Checks range, ticks cooldown, calculates damage, subtracts HP.
- * Returns damage events for the room to broadcast.
+ * Class-aware: warrior melee, magician ranged bolt, assassin bow/dagger hybrid.
  */
-export function autoAttackSystem(world: IWorld, dt: number): DamageEvent[] {
+export function autoAttackSystem(
+	world: IWorld,
+	dt: number,
+	nextNetId?: () => number,
+): { events: DamageEvent[]; projectiles: AutoAttackProjectile[] } {
 	const events: DamageEvent[] = [];
+	const projectiles: AutoAttackProjectile[] = [];
 	const entities = attackerQuery(world);
 
 	for (let i = 0; i < entities.length; i++) {
@@ -59,12 +80,37 @@ export function autoAttackSystem(world: IWorld, dt: number): DamageEvent[] {
 		const dx = Position.x[targetEid] - Position.x[eid];
 		const dz = Position.z[targetEid] - Position.z[eid];
 		const distSq = dx * dx + dz * dz;
-		const rangeSq = AutoAttack.range[eid] * AutoAttack.range[eid];
+		const dist = Math.sqrt(distSq);
 
-		if (distSq > rangeSq) {
-			// Out of range — cooldown doesn't tick while out of range
-			continue;
+		// Determine class-based attack behavior
+		const classId = hasComponent(world, ClassInfo, eid) ? ClassInfo.classId[eid] : CLASS_ID.WARRIOR;
+		let attackRange: number;
+		let isRanged = false;
+		let projectileType: "bolt" | "arrow" = "arrow";
+		let isMagicAttack = false;
+
+		switch (classId) {
+			case CLASS_ID.MAGICIAN:
+				attackRange = RANGED_ATTACK_RANGE;
+				isRanged = true;
+				projectileType = "bolt";
+				isMagicAttack = true;
+				break;
+			case CLASS_ID.ASSASSIN:
+				if (dist > ASSASSIN_MELEE_THRESHOLD) {
+					attackRange = ASSASSIN_BOW_RANGE;
+					isRanged = true;
+					projectileType = "arrow";
+				} else {
+					attackRange = MELEE_RANGE;
+				}
+				break;
+			default: // WARRIOR
+				attackRange = MELEE_RANGE;
+				break;
 		}
+
+		if (dist > attackRange) continue;
 
 		// Tick cooldown
 		AutoAttack.cooldown[eid] -= dt;
@@ -76,23 +122,57 @@ export function autoAttackSystem(world: IWorld, dt: number): DamageEvent[] {
 
 		// Calculate damage
 		const isCrit = Math.random() < CombatStats.critChance[eid];
-		const damage = calculatePhysicalDamage(
-			CombatStats.attackPower[eid],
-			CombatStats.defense[targetEid] ?? 0,
-			isCrit,
-		);
+		const targetDef = CombatStats.defense[targetEid] ?? 0;
 
-		// Apply damage
-		Health.current[targetEid] = Math.max(0, Health.current[targetEid] - damage);
+		if (isRanged && nextNetId) {
+			// Spawn projectile
+			let damage: number;
+			if (isMagicAttack) {
+				const spellPower = CombatStats.int[eid] * 2.5;
+				damage = calculateMagicDamage(spellPower, targetDef, isCrit);
+			} else {
+				damage = calculatePhysicalDamage(CombatStats.attackPower[eid], targetDef, isCrit);
+			}
 
-		events.push({
-			attackerEid: eid,
-			targetEid,
-			amount: damage,
-			isCrit,
-			remainingHp: Health.current[targetEid],
-		});
+			const projEid = addEntity(world);
+			addComponent(world, Position, projEid);
+			addComponent(world, Projectile, projEid);
+			addComponent(world, NetworkIdentity, projEid);
+
+			NetworkIdentity.netId[projEid] = nextNetId();
+			Position.x[projEid] = Position.x[eid];
+			Position.y[projEid] = 1.0;
+			Position.z[projEid] = Position.z[eid];
+
+			Projectile.ownerEid[projEid] = eid;
+			Projectile.targetEid[projEid] = targetEid;
+			Projectile.speed[projEid] = 18;
+			Projectile.damage[projEid] = damage;
+			Projectile.isMagic[projEid] = isMagicAttack ? 1 : 0;
+			Projectile.isCrit[projEid] = isCrit ? 1 : 0;
+			Projectile.lifetime[projEid] = 3;
+
+			projectiles.push({
+				eid: projEid,
+				ownerEid: eid,
+				targetEid,
+				speed: 18,
+				type: projectileType,
+			});
+		} else {
+			// Melee attack — instant damage
+			const damage = calculatePhysicalDamage(CombatStats.attackPower[eid], targetDef, isCrit);
+			Health.current[targetEid] = Math.max(0, Health.current[targetEid] - damage);
+
+			events.push({
+				attackerEid: eid,
+				targetEid,
+				amount: damage,
+				isCrit,
+				remainingHp: Health.current[targetEid],
+			});
+		}
 	}
 
-	return events;
+	return { events, projectiles };
 }

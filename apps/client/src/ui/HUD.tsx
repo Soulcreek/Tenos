@@ -1,14 +1,20 @@
 import type { Engine } from "@babylonjs/core/Engines/engine";
-import { createSignal, onCleanup } from "solid-js";
+import type { EquipmentSlots, InventorySlot } from "@tenos/shared";
+import { Show, createSignal, onCleanup } from "solid-js";
 import type { EngineType } from "../engine/Engine.js";
+import { ClassSelect } from "./ClassSelect.jsx";
 import { CombatLog } from "./CombatLog.jsx";
 import { DeathScreen } from "./DeathScreen.jsx";
 import { DevOverlay } from "./DevOverlay.jsx";
+import { DropConfirm } from "./DropConfirm.jsx";
 import { HealthBar, ManaBar } from "./HealthBar.jsx";
+import { InventoryPanel, type InventoryPanelState } from "./InventoryPanel.jsx";
 import { LootPopup } from "./LootPopup.jsx";
 import { Minimap } from "./Minimap.jsx";
+import { SkillBar, type SkillBarState } from "./SkillBar.jsx";
 import { StatPanel } from "./StatPanel.jsx";
 import { TargetFrame } from "./TargetFrame.jsx";
+import { UpgradePanel } from "./UpgradePanel.jsx";
 import { XPBar } from "./XPBar.jsx";
 
 export interface HUDState {
@@ -44,6 +50,26 @@ export interface HUDState {
 		moveSpeed: number;
 	};
 	allocateStat: (stat: "str" | "dex" | "int" | "vit") => void;
+	// Class & Skills
+	getCharacterClass: () => string;
+	getSkills: () => SkillBarState["getSkills"] extends () => infer R ? R : never;
+	getNeedsClassSelect: () => boolean;
+	selectClass: (cls: string) => void;
+	// Inventory
+	getInventory: () => (InventorySlot | null)[];
+	getEquipment: () => EquipmentSlots;
+	getYang: () => number;
+	sendEquipItem: (slot: number) => void;
+	sendUnequipItem: (slot: string) => void;
+	sendDropItem: (slot: number, qty: number) => void;
+	sendUseItem: (slot: number) => void;
+	sendUpgradeItem: (slot: number, useSeal: boolean) => void;
+	getUpgradeResult: () => {
+		success: boolean;
+		destroyed: boolean;
+		itemName: string;
+		newLevel: number;
+	} | null;
 }
 
 export function HUD(props: { engine: Engine; engineType: EngineType; state: HUDState }) {
@@ -63,6 +89,21 @@ export function HUD(props: { engine: Engine; engineType: EngineType; state: HUDS
 	>([]);
 	const [stats, setStats] = createSignal(props.state.getPlayerStats());
 	const [showStats, setShowStats] = createSignal(false);
+	const [showInventory, setShowInventory] = createSignal(false);
+	const [needsClassSelect, setNeedsClassSelect] = createSignal(false);
+	const [upgradeSlot, setUpgradeSlot] = createSignal<{ slot: InventorySlot; idx: number } | null>(
+		null,
+	);
+	const [dropConfirm, setDropConfirm] = createSignal<{
+		itemId: number;
+		maxQty: number;
+		slotIdx: number;
+	} | null>(null);
+	const [upgradeResult, setUpgradeResult] = createSignal<{
+		success: boolean;
+		destroyed: boolean;
+		itemName: string;
+	} | null>(null);
 
 	const interval = setInterval(() => {
 		setHealth(props.state.getHealth());
@@ -78,14 +119,23 @@ export function HUD(props: { engine: Engine; engineType: EngineType; state: HUDS
 		setCombatLog([...props.state.getCombatLog()]);
 		setLootPopups([...props.state.getLootPopups()]);
 		setStats(props.state.getPlayerStats());
+		setNeedsClassSelect(props.state.getNeedsClassSelect());
+		const ur = props.state.getUpgradeResult();
+		if (ur) setUpgradeResult(ur);
 	}, 100);
 
-	// Toggle stat panel with 'C' key
 	const onKeyDown = (e: KeyboardEvent) => {
+		const tag = (e.target as HTMLElement)?.tagName;
+		if (tag === "INPUT" || tag === "TEXTAREA") return;
 		if (e.key.toLowerCase() === "c") {
-			const tag = (e.target as HTMLElement)?.tagName;
-			if (tag === "INPUT" || tag === "TEXTAREA") return;
 			setShowStats((prev) => !prev);
+		}
+		if (e.key.toLowerCase() === "i") {
+			setShowInventory((prev) => !prev);
+			if (!showInventory()) {
+				setUpgradeSlot(null);
+				setDropConfirm(null);
+			}
 		}
 	};
 	window.addEventListener("keydown", onKeyDown);
@@ -95,8 +145,43 @@ export function HUD(props: { engine: Engine; engineType: EngineType; state: HUDS
 		window.removeEventListener("keydown", onKeyDown);
 	});
 
+	const skillBarState: SkillBarState = {
+		getSkills: () => props.state.getSkills(),
+	};
+
+	const inventoryState: InventoryPanelState = {
+		getInventory: () => props.state.getInventory(),
+		getEquipment: () => props.state.getEquipment(),
+		getYang: () => props.state.getYang(),
+		onEquip: (slot) => props.state.sendEquipItem(slot),
+		onUnequip: (slot) => props.state.sendUnequipItem(slot),
+		onDrop: (slot, _qty) => {
+			const inv = props.state.getInventory();
+			const s = inv[slot];
+			if (s && s.quantity > 1) {
+				setDropConfirm({ itemId: s.itemId, maxQty: s.quantity, slotIdx: slot });
+			} else {
+				props.state.sendDropItem(slot, 1);
+			}
+		},
+		onUse: (slot) => props.state.sendUseItem(slot),
+		onUpgrade: (idx) => {
+			const inv = props.state.getInventory();
+			const s = inv[idx];
+			if (s) {
+				setUpgradeResult(null);
+				setUpgradeSlot({ slot: s, idx });
+			}
+		},
+	};
+
 	return (
 		<>
+			{/* Class Selection Overlay */}
+			<Show when={needsClassSelect()}>
+				<ClassSelect onSelect={(cls) => props.state.selectClass(cls)} />
+			</Show>
+
 			{/* Dev overlay (top-left) */}
 			<DevOverlay
 				engine={props.engine}
@@ -149,6 +234,9 @@ export function HUD(props: { engine: Engine; engineType: EngineType; state: HUDS
 			{/* XP Bar (bottom of screen) */}
 			<XPBar current={xp().current} toLevel={xp().toLevel} level={level()} />
 
+			{/* Skill Bar (bottom-center) */}
+			<SkillBar state={skillBarState} />
+
 			{/* Combat Log (bottom-left, above health bars) */}
 			<CombatLog messages={combatLog()} />
 
@@ -164,6 +252,49 @@ export function HUD(props: { engine: Engine; engineType: EngineType; state: HUDS
 					onClose={() => setShowStats(false)}
 				/>
 			)}
+
+			{/* Inventory Panel (toggle with I) */}
+			<Show when={showInventory()}>
+				<InventoryPanel
+					state={inventoryState}
+					onClose={() => {
+						setShowInventory(false);
+						setUpgradeSlot(null);
+					}}
+				/>
+			</Show>
+
+			{/* Upgrade Panel */}
+			<Show when={upgradeSlot()}>
+				{(us) => (
+					<UpgradePanel
+						slot={us().slot}
+						slotIdx={us().idx}
+						inventory={props.state.getInventory()}
+						onUpgrade={(idx, useSeal) => {
+							props.state.sendUpgradeItem(idx, useSeal);
+						}}
+						onClose={() => setUpgradeSlot(null)}
+						lastResult={upgradeResult()}
+					/>
+				)}
+			</Show>
+
+			{/* Drop Confirmation */}
+			<Show when={dropConfirm()}>
+				{(dc) => (
+					<DropConfirm
+						itemId={dc().itemId}
+						maxQty={dc().maxQty}
+						slotIdx={dc().slotIdx}
+						onConfirm={(idx, qty) => {
+							props.state.sendDropItem(idx, qty);
+							setDropConfirm(null);
+						}}
+						onCancel={() => setDropConfirm(null)}
+					/>
+				)}
+			</Show>
 
 			{/* Death Screen */}
 			{isDead() && <DeathScreen respawnTimer={respawnTimer()} xpLost={xpLost()} />}

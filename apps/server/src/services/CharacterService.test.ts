@@ -37,9 +37,9 @@ describe("findOrCreatePlayer", () => {
 			where: eq(players.username, "testuser1"),
 		});
 		expect(row).toBeDefined();
-		expect(row!.username).toBe("testuser1");
-		expect(row!.displayName).toBe("testuser1");
-		expect(row!.lastLoginAt).toBeInstanceOf(Date);
+		expect(row?.username).toBe("testuser1");
+		expect(row?.displayName).toBe("testuser1");
+		expect(row?.lastLoginAt).toBeInstanceOf(Date);
 	});
 
 	test("returns existing player ID on second call", async () => {
@@ -53,7 +53,7 @@ describe("findOrCreatePlayer", () => {
 		const row1 = await db.query.players.findFirst({
 			where: eq(players.id, id),
 		});
-		const firstLogin = row1!.lastLoginAt!.getTime();
+		const firstLogin = row1?.lastLoginAt?.getTime() ?? 0;
 
 		// Small delay to ensure timestamp differs
 		await new Promise((r) => setTimeout(r, 50));
@@ -62,7 +62,7 @@ describe("findOrCreatePlayer", () => {
 		const row2 = await db.query.players.findFirst({
 			where: eq(players.id, id),
 		});
-		expect(row2!.lastLoginAt!.getTime()).toBeGreaterThanOrEqual(firstLogin);
+		expect(row2?.lastLoginAt?.getTime() ?? 0).toBeGreaterThanOrEqual(firstLogin);
 	});
 });
 
@@ -73,7 +73,7 @@ describe("createCharacter", () => {
 			playerId,
 			"WarriorChar",
 			"warrior",
-			{ str: 12, dex: 8, int: 5, vit: 10 },
+			{ str: 14, dex: 6, int: 4, vit: 12 },
 			250,
 			100,
 		);
@@ -84,10 +84,10 @@ describe("createCharacter", () => {
 		expect(char.characterClass).toBe("warrior");
 		expect(char.level).toBe(1);
 		expect(char.xp).toBe(0);
-		expect(char.str).toBe(12);
-		expect(char.dex).toBe(8);
-		expect(char.intStat).toBe(5);
-		expect(char.vit).toBe(10);
+		expect(char.str).toBe(14);
+		expect(char.dex).toBe(6);
+		expect(char.intStat).toBe(4);
+		expect(char.vit).toBe(12);
 		expect(char.hpCurrent).toBe(250);
 		expect(char.mpCurrent).toBe(100);
 		expect(char.zone).toBe("village-shinsoo");
@@ -100,10 +100,17 @@ describe("createCharacter", () => {
 		const p1 = await findOrCreatePlayer("player_a");
 		const p2 = await findOrCreatePlayer("player_b");
 
-		await createCharacter(p1, "UniqueName", "warrior", { str: 12, dex: 8, int: 5, vit: 10 }, 100, 50);
+		await createCharacter(
+			p1,
+			"UniqueName",
+			"warrior",
+			{ str: 14, dex: 6, int: 4, vit: 12 },
+			100,
+			50,
+		);
 
 		expect(
-			createCharacter(p2, "UniqueName", "warrior", { str: 12, dex: 8, int: 5, vit: 10 }, 100, 50),
+			createCharacter(p2, "UniqueName", "warrior", { str: 14, dex: 6, int: 4, vit: 12 }, 100, 50),
 		).rejects.toThrow();
 	});
 });
@@ -117,13 +124,20 @@ describe("loadCharacter", () => {
 
 	test("loads an existing character", async () => {
 		const playerId = await findOrCreatePlayer("haschar");
-		await createCharacter(playerId, "MyChar", "warrior", { str: 12, dex: 8, int: 5, vit: 10 }, 200, 80);
+		await createCharacter(
+			playerId,
+			"MyChar",
+			"warrior",
+			{ str: 14, dex: 6, int: 4, vit: 12 },
+			200,
+			80,
+		);
 
 		const loaded = await loadCharacter(playerId);
 		expect(loaded).not.toBeNull();
-		expect(loaded!.name).toBe("MyChar");
-		expect(loaded!.str).toBe(12);
-		expect(loaded!.hpCurrent).toBe(200);
+		expect(loaded?.name).toBe("MyChar");
+		expect(loaded?.str).toBe(14);
+		expect(loaded?.hpCurrent).toBe(200);
 	});
 });
 
@@ -134,7 +148,7 @@ describe("saveCharacter", () => {
 			playerId,
 			"SaveTest",
 			"warrior",
-			{ str: 12, dex: 8, int: 5, vit: 10 },
+			{ str: 14, dex: 6, int: 4, vit: 12 },
 			250,
 			100,
 		);
@@ -157,18 +171,18 @@ describe("saveCharacter", () => {
 
 		const loaded = await loadCharacter(playerId);
 		expect(loaded).not.toBeNull();
-		expect(loaded!.zone).toBe("dungeon-1");
-		expect(loaded!.posX).toBeCloseTo(10.5, 1);
-		expect(loaded!.posZ).toBeCloseTo(-5.25, 1);
-		expect(loaded!.level).toBe(5);
-		expect(loaded!.xp).toBe(1234);
-		expect(loaded!.statPoints).toBe(9);
-		expect(loaded!.str).toBe(15);
-		expect(loaded!.dex).toBe(10);
-		expect(loaded!.intStat).toBe(7);
-		expect(loaded!.vit).toBe(13);
-		expect(loaded!.hpCurrent).toBeCloseTo(180, 1);
-		expect(loaded!.mpCurrent).toBeCloseTo(60, 1);
+		expect(loaded?.zone).toBe("dungeon-1");
+		expect(loaded?.posX).toBeCloseTo(10.5, 1);
+		expect(loaded?.posZ).toBeCloseTo(-5.25, 1);
+		expect(loaded?.level).toBe(5);
+		expect(loaded?.xp).toBe(1234);
+		expect(loaded?.statPoints).toBe(9);
+		expect(loaded?.str).toBe(15);
+		expect(loaded?.dex).toBe(10);
+		expect(loaded?.intStat).toBe(7);
+		expect(loaded?.vit).toBe(13);
+		expect(loaded?.hpCurrent).toBeCloseTo(180, 1);
+		expect(loaded?.mpCurrent).toBeCloseTo(60, 1);
 	});
 });
 
@@ -176,8 +190,22 @@ describe("saveCharactersBatch", () => {
 	test("saves multiple characters in a transaction", async () => {
 		const p1 = await findOrCreatePlayer("batch1");
 		const p2 = await findOrCreatePlayer("batch2");
-		const c1 = await createCharacter(p1, "Batch1Char", "warrior", { str: 12, dex: 8, int: 5, vit: 10 }, 200, 80);
-		const c2 = await createCharacter(p2, "Batch2Char", "warrior", { str: 12, dex: 8, int: 5, vit: 10 }, 200, 80);
+		const c1 = await createCharacter(
+			p1,
+			"Batch1Char",
+			"warrior",
+			{ str: 14, dex: 6, int: 4, vit: 12 },
+			200,
+			80,
+		);
+		const c2 = await createCharacter(
+			p2,
+			"Batch2Char",
+			"warrior",
+			{ str: 14, dex: 6, int: 4, vit: 12 },
+			200,
+			80,
+		);
 
 		await saveCharactersBatch([
 			{
@@ -217,13 +245,13 @@ describe("saveCharactersBatch", () => {
 		const l1 = await loadCharacter(p1);
 		const l2 = await loadCharacter(p2);
 
-		expect(l1!.level).toBe(3);
-		expect(l1!.posX).toBeCloseTo(1, 1);
-		expect(l1!.str).toBe(14);
+		expect(l1?.level).toBe(3);
+		expect(l1?.posX).toBeCloseTo(1, 1);
+		expect(l1?.str).toBe(14);
 
-		expect(l2!.level).toBe(2);
-		expect(l2!.posX).toBeCloseTo(5, 1);
-		expect(l2!.str).toBe(13);
+		expect(l2?.level).toBe(2);
+		expect(l2?.posX).toBeCloseTo(5, 1);
+		expect(l2?.str).toBe(13);
 	});
 
 	test("handles empty batch gracefully", async () => {
@@ -239,7 +267,7 @@ describe("full persistence round-trip", () => {
 			playerId,
 			"RoundTrip",
 			"warrior",
-			{ str: 12, dex: 8, int: 5, vit: 10 },
+			{ str: 14, dex: 6, int: 4, vit: 12 },
 			250,
 			100,
 		);
@@ -264,20 +292,20 @@ describe("full persistence round-trip", () => {
 		// Simulate reconnect: load from DB
 		const loaded = await loadCharacter(playerId);
 		expect(loaded).not.toBeNull();
-		expect(loaded!.id).toBe(char.id);
-		expect(loaded!.name).toBe("RoundTrip");
-		expect(loaded!.characterClass).toBe("warrior");
-		expect(loaded!.zone).toBe("village-shinsoo");
-		expect(loaded!.posX).toBeCloseTo(15.75, 1);
-		expect(loaded!.posZ).toBeCloseTo(-8.5, 1);
-		expect(loaded!.level).toBe(7);
-		expect(loaded!.xp).toBe(3456);
-		expect(loaded!.statPoints).toBe(12);
-		expect(loaded!.str).toBe(20);
-		expect(loaded!.dex).toBe(12);
-		expect(loaded!.intStat).toBe(8);
-		expect(loaded!.vit).toBe(16);
-		expect(loaded!.hpCurrent).toBeCloseTo(320, 1);
-		expect(loaded!.mpCurrent).toBeCloseTo(45, 1);
+		expect(loaded?.id).toBe(char.id);
+		expect(loaded?.name).toBe("RoundTrip");
+		expect(loaded?.characterClass).toBe("warrior");
+		expect(loaded?.zone).toBe("village-shinsoo");
+		expect(loaded?.posX).toBeCloseTo(15.75, 1);
+		expect(loaded?.posZ).toBeCloseTo(-8.5, 1);
+		expect(loaded?.level).toBe(7);
+		expect(loaded?.xp).toBe(3456);
+		expect(loaded?.statPoints).toBe(12);
+		expect(loaded?.str).toBe(20);
+		expect(loaded?.dex).toBe(12);
+		expect(loaded?.intStat).toBe(8);
+		expect(loaded?.vit).toBe(16);
+		expect(loaded?.hpCurrent).toBeCloseTo(320, 1);
+		expect(loaded?.mpCurrent).toBeCloseTo(45, 1);
 	});
 });

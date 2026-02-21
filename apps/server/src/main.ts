@@ -1,11 +1,11 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
-import { join, extname } from "node:path";
+import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
+import { extname, join } from "node:path";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { Server } from "colyseus";
-import { ZoneRoom } from "./rooms/ZoneRoom.js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import { ensureDbConnection, closeDb, db } from "./db/client.js";
+import { closeDb, db, ensureDbConnection } from "./db/client.js";
+import { ZoneRoom } from "./rooms/ZoneRoom.js";
 
 const port = Number(process.env.PORT) || 2567;
 const isProduction = Bun.env.NODE_ENV === "production";

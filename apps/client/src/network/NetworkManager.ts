@@ -1,10 +1,16 @@
 import type {
+	BuffApplyMsg,
 	DamageMsg,
 	EntityDiedMsg,
+	HealEffectMsg,
+	InventorySyncMsg,
 	LevelUpMsg,
 	LootPickupMsg,
 	LootSpawnMsg,
 	PlayerRespawnMsg,
+	ProjectileSpawnMsg,
+	SkillEffectMsg,
+	UpgradeResultMsg,
 	XPGainMsg,
 } from "@tenos/shared";
 import { Client, type Room } from "colyseus.js";
@@ -24,6 +30,7 @@ export interface RemotePlayerData {
 	level: number;
 	targetNetId: number;
 	isDead: boolean;
+	characterClass: string;
 }
 
 export interface RemoteMonsterData {
@@ -79,6 +86,15 @@ export type NetworkEventMap = {
 		critChance: number;
 		moveSpeed: number;
 	}) => void;
+	// M3: Class & Skills
+	classSelectPrompt: () => void;
+	skillEffect: (msg: SkillEffectMsg) => void;
+	projectileSpawn: (msg: ProjectileSpawnMsg) => void;
+	buffApply: (msg: BuffApplyMsg) => void;
+	healEffect: (msg: HealEffectMsg) => void;
+	// M3: Inventory
+	inventorySync: (msg: InventorySyncMsg) => void;
+	upgradeResult: (msg: UpgradeResultMsg) => void;
 };
 
 /**
@@ -107,12 +123,12 @@ export class NetworkManager {
 	selfLevel = 1;
 
 	constructor(serverUrl?: string) {
-		if (!serverUrl) {
-			// Use VITE_WS_URL for local dev, otherwise let Colyseus auto-detect from window.location
+		let url = serverUrl;
+		if (!url) {
 			const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-			serverUrl = `${protocol}//${window.location.host}`;
+			url = `${protocol}//${window.location.host}`;
 		}
-		this.client = new Client(serverUrl);
+		this.client = new Client(url);
 	}
 
 	async joinZone(zoneName = "village-shinsoo", playerName = "Player"): Promise<void> {
@@ -158,6 +174,41 @@ export class NetworkManager {
 	sendAllocateStat(stat: "str" | "dex" | "int" | "vit"): void {
 		if (!this.room) return;
 		this.room.send("allocate_stat", { stat });
+	}
+
+	sendUseSkill(slot: number): void {
+		if (!this.room) return;
+		this.room.send("use_skill", { slot });
+	}
+
+	sendClassSelect(characterClass: string): void {
+		if (!this.room) return;
+		this.room.send("class_select", { characterClass });
+	}
+
+	sendEquipItem(inventorySlot: number): void {
+		if (!this.room) return;
+		this.room.send("equip_item", { inventorySlot });
+	}
+
+	sendUnequipItem(equipSlot: string): void {
+		if (!this.room) return;
+		this.room.send("unequip_item", { equipSlot });
+	}
+
+	sendDropItem(inventorySlot: number, quantity: number): void {
+		if (!this.room) return;
+		this.room.send("drop_item", { inventorySlot, quantity });
+	}
+
+	sendUseItem(inventorySlot: number): void {
+		if (!this.room) return;
+		this.room.send("use_item", { inventorySlot });
+	}
+
+	sendUpgradeItem(inventorySlot: number, useWardingSeal: boolean): void {
+		if (!this.room) return;
+		this.room.send("upgrade_item", { inventorySlot, useWardingSeal });
 	}
 
 	// ── Event System ───────────────────────────────────────────
@@ -247,26 +298,33 @@ export class NetworkManager {
 	}
 
 	private trackSelfPlayer(player: Record<string, unknown>): void {
-		const listen = (player as { listen?: (prop: string, cb: (val: number) => void) => void })
+		this.selfCharacterClass = (player.characterClass as string) ?? "warrior";
+		const listen = (player as { listen?: (prop: string, cb: (val: unknown) => void) => void })
 			.listen;
 		if (!listen) return;
 
-		listen.call(player, "hp", (val: number) => {
-			this.selfHp = val;
+		listen.call(player, "hp", (val: unknown) => {
+			this.selfHp = val as number;
 		});
-		listen.call(player, "hpMax", (val: number) => {
-			this.selfHpMax = val;
+		listen.call(player, "hpMax", (val: unknown) => {
+			this.selfHpMax = val as number;
 		});
-		listen.call(player, "mp", (val: number) => {
-			this.selfMp = val;
+		listen.call(player, "mp", (val: unknown) => {
+			this.selfMp = val as number;
 		});
-		listen.call(player, "mpMax", (val: number) => {
-			this.selfMpMax = val;
+		listen.call(player, "mpMax", (val: unknown) => {
+			this.selfMpMax = val as number;
 		});
-		listen.call(player, "level", (val: number) => {
-			this.selfLevel = val;
+		listen.call(player, "level", (val: unknown) => {
+			this.selfLevel = val as number;
+		});
+		listen.call(player, "characterClass", (val: unknown) => {
+			this.selfCharacterClass = val as string;
 		});
 	}
+
+	/** Our character class. */
+	selfCharacterClass = "warrior";
 
 	private extractPlayerData(sessionId: string, player: Record<string, unknown>): RemotePlayerData {
 		return {
@@ -284,6 +342,7 @@ export class NetworkManager {
 			level: (player.level as number) ?? 1,
 			targetNetId: (player.targetNetId as number) ?? 0,
 			isDead: (player.isDead as boolean) ?? false,
+			characterClass: (player.characterClass as string) ?? "warrior",
 		};
 	}
 
@@ -305,6 +364,7 @@ export class NetworkManager {
 			"level",
 			"targetNetId",
 			"isDead",
+			"characterClass",
 		] as const;
 		for (const prop of props) {
 			listen.call(player, prop, (val: unknown) => {
@@ -383,6 +443,36 @@ export class NetworkManager {
 
 		this.room.onMessage("stat_update", (msg: Parameters<NetworkEventMap["statUpdate"]>[0]) => {
 			this.emit("statUpdate", msg);
+		});
+
+		// M3: Class & Skill messages
+		this.room.onMessage("class_select_prompt", () => {
+			this.emit("classSelectPrompt");
+		});
+
+		this.room.onMessage("skill_effect", (msg: SkillEffectMsg) => {
+			this.emit("skillEffect", msg);
+		});
+
+		this.room.onMessage("projectile_spawn", (msg: ProjectileSpawnMsg) => {
+			this.emit("projectileSpawn", msg);
+		});
+
+		this.room.onMessage("buff_apply", (msg: BuffApplyMsg) => {
+			this.emit("buffApply", msg);
+		});
+
+		this.room.onMessage("heal_effect", (msg: HealEffectMsg) => {
+			this.emit("healEffect", msg);
+		});
+
+		// M3: Inventory messages
+		this.room.onMessage("inventory_sync", (msg: InventorySyncMsg) => {
+			this.emit("inventorySync", msg);
+		});
+
+		this.room.onMessage("upgrade_result", (msg: UpgradeResultMsg) => {
+			this.emit("upgradeResult", msg);
 		});
 	}
 

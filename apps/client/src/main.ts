@@ -1,10 +1,16 @@
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import {
+	CLASS_SKILLS,
+	type CharacterClass,
+	type EquipmentSlots,
+	type InventorySlot,
 	LocalPlayer,
 	Position,
 	RemotePlayer,
 	Rotation,
+	SKILL_DEFS,
 	Velocity,
+	createEmptyEquipment,
 	createWorld,
 	movementSystem,
 } from "@tenos/shared";
@@ -17,6 +23,8 @@ import { createLootMeshSystem } from "./ecs/systems/LootMeshSystem.js";
 import { createMeshSyncSystem } from "./ecs/systems/MeshSyncSystem.js";
 import { createMonsterMeshSyncSystem } from "./ecs/systems/MonsterMeshSyncSystem.js";
 import { createTargetSelectionSystem } from "./ecs/systems/TargetSelectionSystem.js";
+import { HealEffectManager } from "./effects/HealEffect.js";
+import { ProjectileEffectManager } from "./effects/ProjectileEffect.js";
 import { TargetRing } from "./effects/TargetRing.js";
 import { createEngine } from "./engine/Engine.js";
 import { createScene } from "./engine/SceneManager.js";
@@ -61,7 +69,7 @@ async function main() {
 	const meshSyncSystem = createMeshSyncSystem(scene, shadowGenerator, remoteEidToNetId);
 
 	// ── Camera ─────────────────────────────────────────────────
-	const gameCamera = new GameCamera(scene, canvas, localCharacter.mesh);
+	const gameCamera = new GameCamera(scene, canvas, localCharacter.rootNode);
 	scene.activeCamera = gameCamera.camera;
 
 	// ── Network ────────────────────────────────────────────────
@@ -114,6 +122,10 @@ async function main() {
 	document.body.appendChild(dmgContainer);
 	const damageNumbers = createDamageNumberSystem(dmgContainer);
 
+	// ── Projectile & Heal Effects ─────────────────────────────
+	const projectileEffects = new ProjectileEffectManager(scene);
+	const healEffects = new HealEffectManager(scene);
+
 	// ── Combat State ───────────────────────────────────────────
 	let currentXP = 0;
 	let xpToLevel = 100;
@@ -134,6 +146,22 @@ async function main() {
 		critChance: 0,
 		moveSpeed: 0,
 	};
+
+	// ── Class & Skill State ──────────────────────────────────
+	let needsClassSelect = false;
+	const skillCooldowns = [0, 0];
+	const skillCooldownMaxes = [0, 0];
+
+	// ── Inventory State ──────────────────────────────────────
+	let inventorySlots: (InventorySlot | null)[] = new Array(45).fill(null);
+	let equipmentSlots: EquipmentSlots = createEmptyEquipment();
+	let yang = 0;
+	let lastUpgradeResult: {
+		success: boolean;
+		destroyed: boolean;
+		itemName: string;
+		newLevel: number;
+	} | null = null;
 
 	// ── Monster Network Events ─────────────────────────────────
 	network.on("monsterAdd", (data) => {
@@ -199,14 +227,14 @@ async function main() {
 		if (msg.isMonster) {
 			const monster = monsterMeshSync.getMonster(msg.netId);
 			if (monster) {
-				createDeathEffect(scene, monster.mesh.position.clone());
+				createDeathEffect(scene, monster.mesh.getAbsolutePosition().clone());
 			}
 			combatLog.push("Monster defeated!");
 		} else {
 			// Player killed — find their mesh for death effect
 			for (const mesh of scene.meshes) {
 				if (mesh.metadata?.netId === msg.netId && mesh.metadata?.entityType === "player") {
-					createDeathEffect(scene, mesh.position.clone());
+					createDeathEffect(scene, mesh.getAbsolutePosition().clone());
 					break;
 				}
 			}
@@ -269,6 +297,67 @@ async function main() {
 		};
 	});
 
+	// ── M3: Class & Skill Events ─────────────────────────────
+	network.on("classSelectPrompt", () => {
+		needsClassSelect = true;
+	});
+
+	network.on("projectileSpawn", (msg) => {
+		projectileEffects.spawn(msg.id, msg.fromX, msg.fromZ, msg.toNetId, msg.speed, msg.type);
+	});
+
+	network.on("healEffect", (msg) => {
+		// Find position of target
+		const monster = monsterMeshSync.getMonster(msg.targetNetId);
+		if (monster) {
+			healEffects.spawn(monster.mesh.position.x, monster.mesh.position.z);
+		} else {
+			// Check if it's us
+			const pos = Position;
+			healEffects.spawn(pos.x[playerEid], pos.z[playerEid]);
+		}
+
+		// Damage number as heal
+		if (scene.activeCamera) {
+			const targetPos =
+				monster?.mesh.position ??
+				new Vector3(Position.x[playerEid], Position.y[playerEid], Position.z[playerEid]);
+			const screenPos = Vector3.Project(
+				targetPos,
+				scene.getTransformMatrix().clone(),
+				scene.getTransformMatrix(),
+				scene.activeCamera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight()),
+			);
+			damageNumbers.spawn(screenPos.x, screenPos.y - 30, msg.amount, "heal");
+		}
+	});
+
+	network.on("skillEffect", (_msg) => {
+		// Visual handled by projectile/heal listeners
+	});
+
+	network.on("buffApply", (msg) => {
+		combatLog.push(`Buff applied: ${msg.buffId}`);
+	});
+
+	// ── M3: Inventory Events ─────────────────────────────────
+	network.on("inventorySync", (msg) => {
+		inventorySlots = msg.inventory;
+		equipmentSlots = msg.equipment;
+		yang = msg.yang;
+	});
+
+	network.on("upgradeResult", (msg) => {
+		lastUpgradeResult = msg;
+		if (msg.success) {
+			combatLog.push(`Upgrade success! ${msg.itemName} is now +${msg.newLevel}`);
+		} else if (msg.destroyed) {
+			combatLog.push(`${msg.itemName} was destroyed!`);
+		} else {
+			combatLog.push(`Upgrade failed on ${msg.itemName}`);
+		}
+	});
+
 	// Connect in background (non-blocking)
 	setLoadingStatus("Connecting to server...");
 	network.joinZone().catch(() => {
@@ -307,7 +396,6 @@ async function main() {
 					level: monsterData.level,
 				};
 			}
-			// Check remote players by netId
 			for (const [, playerData] of network.getRemotePlayers()) {
 				if (playerData.netId === netId) {
 					return {
@@ -329,6 +417,42 @@ async function main() {
 		getPlayerStats: () => playerStats,
 		allocateStat: (stat: "str" | "dex" | "int" | "vit") => {
 			network.sendAllocateStat(stat);
+		},
+		// M3: Class & Skills
+		getCharacterClass: () => network.selfCharacterClass ?? "warrior",
+		getSkills: () => {
+			const cls = (network.selfCharacterClass ?? "warrior") as CharacterClass;
+			const skillIds = CLASS_SKILLS[cls] ?? ["cleave", "iron_will"];
+			return skillIds.map((id, i) => {
+				const def = SKILL_DEFS[id];
+				return {
+					id,
+					name: def?.name ?? id,
+					manaCost: def?.manaCost ?? 0,
+					cooldown: skillCooldowns[i],
+					cooldownMax: skillCooldownMaxes[i],
+					key: String(i + 1),
+				};
+			});
+		},
+		getNeedsClassSelect: () => needsClassSelect,
+		selectClass: (cls: string) => {
+			needsClassSelect = false;
+			network.sendClassSelect(cls);
+		},
+		// M3: Inventory
+		getInventory: () => inventorySlots,
+		getEquipment: () => equipmentSlots,
+		getYang: () => yang,
+		sendEquipItem: (slot: number) => network.sendEquipItem(slot),
+		sendUnequipItem: (slot: string) => network.sendUnequipItem(slot),
+		sendDropItem: (slot: number, qty: number) => network.sendDropItem(slot, qty),
+		sendUseItem: (slot: number) => network.sendUseItem(slot),
+		sendUpgradeItem: (slot: number, useSeal: boolean) => network.sendUpgradeItem(slot, useSeal),
+		getUpgradeResult: () => {
+			const r = lastUpgradeResult;
+			lastUpgradeResult = null;
+			return r;
 		},
 	};
 
@@ -360,12 +484,13 @@ async function main() {
 		if (Velocity.x[playerEid] !== 0 || Velocity.z[playerEid] !== 0) {
 			localCharacter.setRotationY(Rotation.y[playerEid]);
 		}
+		localCharacter.update(dt);
 
 		// Sync remote players ECS → meshes (lerped)
-		meshSyncSystem(world);
+		meshSyncSystem(world, dt);
 
 		// Lerp monster meshes
-		monsterMeshSync.lerpMonsters(network.getRemoteMonsters() as Map<number, RemoteMonsterData>);
+		monsterMeshSync.lerpMonsters(network.getRemoteMonsters() as Map<number, RemoteMonsterData>, dt);
 
 		// Animate loot meshes (hover + rotate)
 		lootMeshSystem.update(dt);
@@ -395,6 +520,48 @@ async function main() {
 			}
 		} else {
 			targetRing.hide();
+		}
+
+		// Update projectile and heal effects
+		projectileEffects.update(dt, (netId) => {
+			const monster = monsterMeshSync.getMonster(netId);
+			if (monster) return { x: monster.mesh.position.x, z: monster.mesh.position.z };
+			for (const [, p] of network.getRemotePlayers()) {
+				if (p.netId === netId) return { x: p.x, z: p.z };
+			}
+			return null;
+		});
+		healEffects.update(dt);
+
+		// Tick skill cooldowns client-side for responsive UI
+		for (let i = 0; i < 2; i++) {
+			if (skillCooldowns[i] > 0) {
+				skillCooldowns[i] = Math.max(0, skillCooldowns[i] - dt);
+			}
+		}
+
+		// Skill keybinds (1, 2)
+		if (!isDead && network.connected) {
+			if (inputManager.isKeyDown("1")) {
+				const cls = (network.selfCharacterClass ?? "warrior") as CharacterClass;
+				const skillIds = CLASS_SKILLS[cls];
+				const def = SKILL_DEFS[skillIds?.[0]];
+				if (skillCooldowns[0] <= 0 && def) {
+					network.sendUseSkill(1);
+					skillCooldowns[0] = def.cooldown;
+					skillCooldownMaxes[0] = def.cooldown;
+				}
+			}
+			if (inputManager.isKeyDown("2")) {
+				const cls = (network.selfCharacterClass ?? "warrior") as CharacterClass;
+				const skillIds = CLASS_SKILLS[cls];
+				const def = SKILL_DEFS[skillIds?.[1]];
+				if (skillCooldowns[1] <= 0 && def) {
+					network.sendUseSkill(2);
+					skillCooldowns[1] = def.cooldown;
+					skillCooldownMaxes[1] = def.cooldown;
+				}
+			}
 		}
 
 		// Update damage numbers

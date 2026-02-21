@@ -1,17 +1,25 @@
 import type { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGenerator";
-import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import type { Mesh } from "@babylonjs/core/Meshes/mesh";
-import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import type { Scene } from "@babylonjs/core/scene";
+import { type HumanoidMesh, buildHumanoidMesh } from "./meshes/HumanoidMeshBuilder.js";
+import { HumanoidAnimator } from "./meshes/ProceduralAnimator.js";
 
-/**
- * Creates a placeholder character mesh (capsule shape).
- * Will be replaced with actual GLTF models in a later milestone.
- */
 export class CharacterRenderer {
-	readonly mesh: Mesh;
+	/** First child mesh — used for picking/metadata/rendering queries. */
+	get mesh() {
+		return this.humanoid.allMeshes[0];
+	}
+
+	/** Root transform node — use for world position/rotation. */
+	get rootNode() {
+		return this.humanoid.root;
+	}
+
+	private readonly humanoid: HumanoidMesh;
+	private readonly animator: HumanoidAnimator;
+	private prevX = 0;
+	private prevZ = 0;
 
 	constructor(
 		scene: Scene,
@@ -20,60 +28,49 @@ export class CharacterRenderer {
 			name: "player",
 		},
 	) {
-		// Capsule body (cylinder + two half-spheres)
-		const body = MeshBuilder.CreateCylinder(
-			`${options.name}_body`,
-			{ height: 1.2, diameter: 0.6, tessellation: 16 },
+		this.humanoid = buildHumanoidMesh({
+			name: options.name,
+			color: options.color ?? new Color3(0.2, 0.4, 0.8),
 			scene,
-		);
+			netId: options.netId,
+			entityType: "player",
+		});
 
-		const head = MeshBuilder.CreateSphere(
-			`${options.name}_head`,
-			{ diameter: 0.55, segments: 12 },
-			scene,
-		);
-		head.position.y = 0.85;
-		head.parent = body;
-
-		// Material
-		const mat = new StandardMaterial(`${options.name}_mat`, scene);
-		mat.diffuseColor = options.color ?? new Color3(0.2, 0.4, 0.8);
-		mat.specularColor = new Color3(0.3, 0.3, 0.3);
-		body.material = mat;
-		head.material = mat;
+		this.animator = new HumanoidAnimator();
 
 		// Position on terrain
-		const pos = options.position ?? new Vector3(0, 0.6, 0);
-		body.position = pos;
+		const pos = options.position ?? new Vector3(0, 0, 0);
+		this.humanoid.root.position = pos;
 
-		// Set metadata for picking
-		if (options.netId) {
-			body.metadata = { netId: options.netId, entityType: "player" };
-			head.metadata = { netId: options.netId, entityType: "player" };
+		// Add shadow casters for visible body parts
+		for (const m of this.humanoid.allMeshes) {
+			shadowGenerator.addShadowCaster(m);
 		}
-
-		// Cast shadow (body only — head is parented and tiny)
-		shadowGenerator.addShadowCaster(body);
-
-		this.mesh = body;
 	}
 
-	/** Updates the mesh world position (called from MeshSyncSystem later). */
 	setPosition(x: number, y: number, z: number): void {
-		this.mesh.position.x = x;
-		this.mesh.position.y = y + 0.6; // offset so feet are at ground level
-		this.mesh.position.z = z;
+		this.humanoid.root.position.x = x;
+		this.humanoid.root.position.y = y;
+		this.humanoid.root.position.z = z;
 	}
 
-	/** Sets facing direction as Y-axis rotation in radians. */
 	setRotationY(rad: number): void {
-		this.mesh.rotation.y = rad;
+		this.humanoid.root.rotation.y = rad;
 	}
 
-	/** Flash white on hit. */
+	/** Call each frame to drive procedural animation. */
+	update(dt: number): void {
+		const dx = this.humanoid.root.position.x - this.prevX;
+		const dz = this.humanoid.root.position.z - this.prevZ;
+		const isMoving = dx * dx + dz * dz > 0.0001;
+		this.prevX = this.humanoid.root.position.x;
+		this.prevZ = this.humanoid.root.position.z;
+
+		this.animator.update(dt, isMoving, this.humanoid.joints);
+	}
+
 	flashHit(): void {
-		const mat = this.mesh.material as StandardMaterial;
-		if (!mat) return;
+		const mat = this.humanoid.material;
 		const original = mat.diffuseColor.clone();
 		mat.diffuseColor = new Color3(1, 1, 1);
 		setTimeout(() => {
@@ -81,20 +78,11 @@ export class CharacterRenderer {
 		}, 100);
 	}
 
-	/** Brief lunge forward (attack animation placeholder). */
 	triggerLunge(): void {
-		const original = this.mesh.position.clone();
-		const fwd = Math.sin(this.mesh.rotation.y);
-		const fwdZ = Math.cos(this.mesh.rotation.y);
-		this.mesh.position.x += fwd * 0.3;
-		this.mesh.position.z += fwdZ * 0.3;
-		setTimeout(() => {
-			this.mesh.position.x = original.x;
-			this.mesh.position.z = original.z;
-		}, 100);
+		this.animator.triggerAttack();
 	}
 
 	dispose(): void {
-		this.mesh.dispose(false, true);
+		this.humanoid.root.dispose(false, true);
 	}
 }
