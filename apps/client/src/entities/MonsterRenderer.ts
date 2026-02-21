@@ -50,9 +50,8 @@ export class MonsterRenderer {
 		body.metadata = { netId: options.netId, entityType: "monster" };
 		head.metadata = { netId: options.netId, entityType: "monster" };
 
-		// Cast shadow
+		// Cast shadow (body only — head is parented and tiny)
 		shadowGenerator.addShadowCaster(body);
-		shadowGenerator.addShadowCaster(head);
 
 		// Position offset so feet are on the ground
 		body.position.y = 0.6 * scale;

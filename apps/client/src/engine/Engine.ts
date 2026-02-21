@@ -24,11 +24,13 @@ export async function createEngine(canvas: HTMLCanvasElement): Promise<EngineHan
 	if (hasWebGPU) {
 		try {
 			const engine = new WebGPUEngine(canvas, {
-				adaptToDeviceRatio: true,
+				adaptToDeviceRatio: false,
 				antialias: true,
 				stencil: true,
 			});
 			await engine.initAsync();
+			// Cap HiDPI scaling to 1.5x to avoid 4x pixel count on Retina
+			engine.setHardwareScalingLevel(1 / Math.min(window.devicePixelRatio, 1.5));
 			console.info("[Engine] WebGPU initialized");
 			return { engine: engine as unknown as WebGL2Engine, type: "webgpu" };
 		} catch (err) {
@@ -40,8 +42,10 @@ export async function createEngine(canvas: HTMLCanvasElement): Promise<EngineHan
 	const engine = new WebGL2Engine(canvas, true, {
 		preserveDrawingBuffer: true,
 		stencil: true,
-		adaptToDeviceRatio: true,
+		adaptToDeviceRatio: false,
 	});
+	// Cap HiDPI scaling to 1.5x to avoid 4x pixel count on Retina
+	engine.setHardwareScalingLevel(1 / Math.min(window.devicePixelRatio, 1.5));
 	console.info("[Engine] WebGL2 initialized");
 	return { engine, type: "webgl2" };
 }

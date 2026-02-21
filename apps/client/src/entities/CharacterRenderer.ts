@@ -52,9 +52,8 @@ export class CharacterRenderer {
 			head.metadata = { netId: options.netId, entityType: "player" };
 		}
 
-		// Cast shadow
+		// Cast shadow (body only — head is parented and tiny)
 		shadowGenerator.addShadowCaster(body);
-		shadowGenerator.addShadowCaster(head);
 
 		this.mesh = body;
 	}

@@ -4,12 +4,10 @@ import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
-import { PhysicsShapeType } from "@babylonjs/core/Physics/v2/IPhysicsEnginePlugin";
-import { PhysicsAggregate } from "@babylonjs/core/Physics/v2/physicsAggregate";
 import type { Scene } from "@babylonjs/core/scene";
 
 export const TERRAIN_SIZE = 128;
-const TERRAIN_SUBDIVISIONS = 64;
+const TERRAIN_SUBDIVISIONS = 4;
 
 /**
  * Manages the game terrain: ground plane, skybox, and environment visuals.
@@ -30,8 +28,6 @@ export class TerrainManager {
 		groundMat.specularColor = new Color3(0.05, 0.05, 0.05);
 		this.ground.material = groundMat;
 		this.ground.receiveShadows = true;
-
-		new PhysicsAggregate(this.ground, PhysicsShapeType.BOX, { mass: 0 }, scene);
 
 		// ── Skybox ─────────────────────────────────────────────────
 		this.createSkybox(scene);

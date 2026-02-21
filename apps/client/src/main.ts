@@ -41,7 +41,7 @@ async function main() {
 	// ── Engine ──────────────────────────────────────────────────
 	setLoadingStatus("Initializing engine...");
 	const { engine, type: engineType } = await createEngine(canvas);
-	setLoadingStatus("Creating scene & physics...");
+	setLoadingStatus("Creating scene...");
 	const { scene, localCharacter, shadowGenerator } = await createScene(engine);
 
 	// ── ECS World ──────────────────────────────────────────────

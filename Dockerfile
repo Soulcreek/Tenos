@@ -13,9 +13,6 @@ WORKDIR /app
 COPY tsconfig.base.json ./
 COPY packages/shared/ ./packages/shared/
 COPY apps/client/ ./apps/client/
-# Copy Havok WASM to client public (may be hoisted or in workspace node_modules)
-RUN mkdir -p apps/client/public && \
-    cp $(find /app -path "*/\@babylonjs/havok/lib/esm/HavokPhysics.wasm" -print -quit) apps/client/public/
 RUN cd apps/client && bunx vite build
 
 # Stage 3: Build server
@@ -43,8 +40,6 @@ RUN bun init -y > /dev/null 2>&1 && \
 
 # Copy client build as static files
 COPY --from=client-build /app/apps/client/dist ./public/
-# Copy Havok WASM
-COPY --from=client-build /app/apps/client/public/HavokPhysics.wasm ./public/
 
 ENV NODE_ENV=production
 ENV PORT=2567
