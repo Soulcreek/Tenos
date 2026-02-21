@@ -12,8 +12,8 @@ describe("recalculateDerivedStats", () => {
 	test("returns correct base stats for level 1 warrior", () => {
 		const stats = recalculateDerivedStats(12, 8, 5, 10, 1);
 
-		// hpMax = 100 + 10*10 + 1*5 = 205
-		expect(stats.hpMax).toBe(205);
+		// hpMax = 100 + floor(10*10*1.2) + 1*5 = 225 (warrior Fortitude: +20% VIT scaling)
+		expect(stats.hpMax).toBe(225);
 		// mpMax = 50 + 5*8 + 1*3 = 93
 		expect(stats.mpMax).toBe(93);
 		// attackPower = 12*2 + 1*1.5 = 25.5

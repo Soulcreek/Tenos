@@ -91,6 +91,8 @@ jobs:
       - run: bun install
       - name: Copy WASM
         run: bun run copy:wasm
+      - name: Install Playwright deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libatk1.0-0 libatk-bridge2.0-0 libcups2 libxdamage1 libxcomposite1 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2t64 libnspr4 libnss3 2>/dev/null || true
       - name: Install Playwright
         run: bunx playwright install chromium
       - name: E2E tests
